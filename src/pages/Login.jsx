@@ -1,7 +1,6 @@
-// src/pages/Login.jsx
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { login } from "../services/authService"; // ✅ adjust path if needed
+import { login } from "../services/authService";
 import { toast, Toaster } from "react-hot-toast";
 
 export default function Login() {
@@ -26,7 +25,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-black">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-black px-4">
       <Toaster position="top-right" />
       <form
         onSubmit={handleSubmit}
