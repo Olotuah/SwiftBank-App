@@ -1,4 +1,3 @@
-// src/pages/Login.jsx
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { login } from "../services/authService";
@@ -14,12 +13,13 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+
     try {
-      await login({ email, password });
+      await login({ email, password }); // ✅ stores token + user
       toast.success("Login successful!");
       navigate("/dashboard");
     } catch (err) {
-      toast.error("Login failed. Check your credentials.");
+      toast.error(err?.response?.data?.message || "Login failed. Check your credentials.");
     } finally {
       setLoading(false);
     }
@@ -27,7 +27,6 @@ export default function Login() {
 
   return (
     <div className="bg-gray-950 text-white min-h-screen font-manrope">
-
       <Toaster position="top-right" />
 
       {/* NAVBAR */}
@@ -38,7 +37,7 @@ export default function Login() {
           <a href="#" className="hover:text-blue-400">Business</a>
           <a href="#" className="hover:text-blue-400">Invest</a>
           <a href="#" className="hover:text-blue-400">Loans</a>
-          <Link to="/register" className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700">
+          <Link to="/register" className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700 transition">
             Open Account
           </Link>
         </div>
@@ -46,7 +45,6 @@ export default function Login() {
 
       {/* HERO SECTION */}
       <section className="grid md:grid-cols-2 gap-12 px-8 py-20 items-center">
-
         {/* LEFT SIDE */}
         <div>
           <h2 className="text-5xl font-bold leading-tight mb-6">
@@ -76,11 +74,11 @@ export default function Login() {
           <div className="mt-10 flex gap-4">
             <Link
               to="/register"
-              className="bg-blue-600 px-6 py-3 rounded-lg hover:bg-blue-700"
+              className="bg-blue-600 px-6 py-3 rounded-lg hover:bg-blue-700 transition"
             >
               Open Account
             </Link>
-            <button className="border border-white/20 px-6 py-3 rounded-lg hover:bg-white/10">
+            <button className="border border-white/20 px-6 py-3 rounded-lg hover:bg-white/10 transition">
               Learn More
             </button>
           </div>
@@ -112,7 +110,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 py-3 rounded-lg hover:bg-blue-700 transition"
+              className="w-full bg-blue-600 py-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-60"
             >
               {loading ? "Authenticating..." : "Log In"}
             </button>
@@ -166,7 +164,6 @@ export default function Login() {
       <footer className="px-8 py-10 border-t border-white/10 text-gray-500 text-sm text-center">
         © {new Date().getFullYear()} SwiftBank. All rights reserved.
       </footer>
-
     </div>
   );
 }
