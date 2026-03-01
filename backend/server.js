@@ -13,7 +13,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use("/transfers", transferRoutes);
+app.use("/api/transfers", transferRoutes);
 app.use("/api/auth", authRoutes); // ✅ check this too
 app.use('/api/accounts', accountRoutes);
 app.use("/api/transactions", transactionRoutes); // ✅ your error is here
