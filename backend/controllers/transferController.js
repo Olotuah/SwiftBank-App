@@ -106,90 +106,72 @@ export const getPendingTransfers = async (req, res) => {
   }
 };
 
-// ✅ admin: approve transfer -> move balances + create transactions
 export const approveTransfer = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const { id } = req.params;
 
-    const transfer = await Transfer.findById(id).session(session);
-    if (!transfer) {
-      await session.abortTransaction();
-      return res.status(404).json({ message: "Transfer not found" });
-    }
+    const transfer = await Transfer.findById(id);
+    if (!transfer) return res.status(404).json({ message: "Transfer not found" });
+
     if (transfer.status !== "PENDING") {
-      await session.abortTransaction();
       return res.status(400).json({ message: "Transfer already decided" });
     }
 
-    const fromAcc = await Account.findById(transfer.fromAccount).session(session);
-    const toAcc = await Account.findById(transfer.toAccount).session(session);
+    const fromAcc = await Account.findById(transfer.fromAccount);
+    const toAcc = await Account.findById(transfer.toAccount);
 
     if (!fromAcc || !toAcc) {
-      await session.abortTransaction();
       return res.status(404).json({ message: "Account not found" });
     }
 
-    if (fromAcc.balance < transfer.amount) {
+    // Re-check balance at approval time
+    if (Number(fromAcc.balance) < Number(transfer.amount)) {
       transfer.status = "REJECTED";
       transfer.decisionReason = "Insufficient balance at approval time";
-      transfer.approvedBy = req.user.id;
+      transfer.decidedBy = req.user.id;         // ✅ standard field
       transfer.decidedAt = new Date();
-      await transfer.save({ session });
+      await transfer.save();
 
-      await session.commitTransaction();
       return res.status(400).json({ message: "Rejected: insufficient balance", transfer });
     }
 
-    // ✅ update balances
-    fromAcc.balance -= transfer.amount;
-    toAcc.balance += transfer.amount;
+    // ✅ move balances
+    fromAcc.balance = Number(fromAcc.balance) - Number(transfer.amount);
+    toAcc.balance = Number(toAcc.balance) + Number(transfer.amount);
 
-    await fromAcc.save({ session });
-    await toAcc.save({ session });
+    await fromAcc.save();
+    await toAcc.save();
 
-    // ✅ create transactions (sender debit)
-    await Transaction.create(
-      [
-        {
-          user: transfer.fromUser,
-          type: "Debit",
-          amount: transfer.amount,
-          description: transfer.note || `Transfer to ${transfer.toUser}`,
-          status: "Completed",
-          transferRef: transfer.reference,
-          counterparty: "Receiver",
-        },
-        {
-          user: transfer.toUser,
-          type: "Credit",
-          amount: transfer.amount,
-          description: transfer.note || `Transfer from ${transfer.fromUser}`,
-          status: "Completed",
-          transferRef: transfer.reference,
-          counterparty: "Sender",
-        },
-      ],
-      { session }
-    );
+    // ✅ create transactions (ledger)
+    await Transaction.create([
+      {
+        user: transfer.fromUser,
+        type: "Debit",
+        amount: transfer.amount,
+        description: transfer.note || "Transfer",
+        status: "Completed",
+        timestamp: new Date(),
+      },
+      {
+        user: transfer.toUser,
+        type: "Credit",
+        amount: transfer.amount,
+        description: transfer.note || "Transfer",
+        status: "Completed",
+        timestamp: new Date(),
+      },
+    ]);
 
     // ✅ finalize transfer
     transfer.status = "APPROVED";
-    transfer.approvedBy = req.user.id;
+    transfer.decidedBy = req.user.id;          // ✅ standard field
     transfer.decidedAt = new Date();
-    await transfer.save({ session });
-
-    await session.commitTransaction();
+    await transfer.save();
 
     return res.json({ message: "Transfer approved", transfer });
   } catch (err) {
     console.error("approveTransfer error:", err);
-    await session.abortTransaction();
     return res.status(500).json({ message: "Failed to approve transfer" });
-  } finally {
-    session.endSession();
   }
 };
 
@@ -201,11 +183,13 @@ export const rejectTransfer = async (req, res) => {
 
     const transfer = await Transfer.findById(id);
     if (!transfer) return res.status(404).json({ message: "Transfer not found" });
-    if (transfer.status !== "PENDING") return res.status(400).json({ message: "Transfer already decided" });
+    if (transfer.status !== "PENDING") {
+      return res.status(400).json({ message: "Transfer already decided" });
+    }
 
     transfer.status = "REJECTED";
     transfer.decisionReason = reason;
-    transfer.approvedBy = req.user.id;
+    transfer.decidedBy = req.user.id;         // ✅ standard field
     transfer.decidedAt = new Date();
     await transfer.save();
 
