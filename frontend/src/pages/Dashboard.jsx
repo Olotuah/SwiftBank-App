@@ -34,7 +34,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // ✅ define user ONCE
   const user = useMemo(() => getStoredUser(), []);
+  const isAdmin = !!user?.isAdmin || !!user?.admin;
   const firstName = user?.fullName?.split?.(" ")?.[0] || "there";
 
   const fadeIn = {
@@ -57,11 +59,9 @@ export default function Dashboard() {
     { icon: <CreditCard size={18} />, label: "Cards", to: "/cards" },
   ];
 
-  // ✅ ONE function that loads dashboard data (reusable for auto refresh + button)
+  // ✅ ONE function to load dashboard (used by auto refresh + manual refresh)
   const loadDashboard = useCallback(
     async ({ silent = false } = {}) => {
-      let toastShown = false;
-
       try {
         if (!silent) setLoading(true);
         if (silent) setRefreshing(true);
@@ -76,20 +76,17 @@ export default function Dashboard() {
       } catch (err) {
         console.error(err);
 
-        // If token expired or not authorized, redirect cleanly
-        const msg = err?.response?.data?.message;
         const status = err?.response?.status;
 
+        // ✅ if token expired, logout + redirect
         if (status === 401) {
           doLogout();
-          if (!toastShown) toast.error("Session expired. Please log in again.");
-          toastShown = true;
+          toast.error("Session expired. Please log in again.");
           navigate("/login");
           return;
         }
 
-        if (!toastShown) toast.error("Failed to load dashboard data");
-        toastShown = true;
+        toast.error("Failed to load dashboard data");
       } finally {
         if (!silent) setLoading(false);
         if (silent) setRefreshing(false);
@@ -98,26 +95,15 @@ export default function Dashboard() {
     [navigate]
   );
 
-  // ✅ Load once, then auto-refresh every 10 seconds
+  // ✅ Load once + auto refresh every 10 seconds
   useEffect(() => {
-    let alive = true;
-
-    const run = async () => {
-      if (!alive) return;
-      await loadDashboard({ silent: false });
-    };
-
-    run();
+    loadDashboard({ silent: false });
 
     const interval = setInterval(() => {
-      if (!alive) return;
-      loadDashboard({ silent: true }); // silent refresh (no loading screen)
+      loadDashboard({ silent: true });
     }, 10000);
 
-    return () => {
-      alive = false;
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, [loadDashboard]);
 
   const totalBalance = useMemo(() => {
@@ -188,9 +174,24 @@ export default function Dashboard() {
                 className="px-3 py-2 rounded-2xl border border-slate-700 hover:bg-slate-800 transition inline-flex items-center gap-2"
                 title="Refresh dashboard"
               >
-                <RefreshCcw size={18} className={refreshing ? "animate-spin" : ""} />
-                <span className="text-sm">{refreshing ? "Refreshing" : "Refresh"}</span>
+                <RefreshCcw
+                  size={18}
+                  className={refreshing ? "animate-spin" : ""}
+                />
+                <span className="text-sm">
+                  {refreshing ? "Refreshing" : "Refresh"}
+                </span>
               </button>
+
+              {/* ✅ admin button in header (cleaner than placing alone) */}
+              {isAdmin && (
+                <Link
+                  to="/admin/transfers"
+                  className="px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 transition"
+                >
+                  Admin
+                </Link>
+              )}
 
               <Link
                 to="/profile"
@@ -273,7 +274,9 @@ export default function Dashboard() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-lg font-bold">Need Higher Limits?</h3>
-                <p className="text-sm text-slate-200/80 mt-1">Adjust limits in your profile settings.</p>
+                <p className="text-sm text-slate-200/80 mt-1">
+                  Adjust limits in your profile settings.
+                </p>
               </div>
               <Settings className="opacity-80" />
             </div>
@@ -301,32 +304,14 @@ export default function Dashboard() {
           transition={{ delay: 0.05, duration: 0.55 }}
         >
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <MetricCard
-              title="This Month Income"
-              value={hideBalance ? "••••" : `$${monthIncome.toLocaleString()}`}
-              hint="Credits"
-            />
-            <MetricCard
-              title="This Month Spent"
-              value={hideBalance ? "••••" : `$${monthSpent.toLocaleString()}`}
-              hint="Debits"
-            />
-            <MetricCard
-              title="Security Status"
-              value="Protected"
-              hint="Encrypted sessions"
-              icon={<ShieldCheck className="text-emerald-400" />}
-            />
+            <MetricCard title="This Month Income" value={hideBalance ? "••••" : `$${monthIncome.toLocaleString()}`} hint="Credits" />
+            <MetricCard title="This Month Spent" value={hideBalance ? "••••" : `$${monthSpent.toLocaleString()}`} hint="Debits" />
+            <MetricCard title="Security Status" value="Protected" hint="Encrypted sessions" icon={<ShieldCheck className="text-emerald-400" />} />
           </div>
         </motion.div>
 
         {/* SHORTCUTS */}
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={fadeIn}
-          transition={{ delay: 0.16, duration: 0.55 }}
-        >
+        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.16, duration: 0.55 }}>
           <div className="flex items-end justify-between gap-3 mb-4">
             <h2 className="text-2xl font-bold">Shortcuts</h2>
             <p className="text-sm text-slate-400">Quick actions you’ll use daily</p>
@@ -351,21 +336,13 @@ export default function Dashboard() {
         </motion.div>
 
         {/* MORE REAL BANK ACTIVITIES BELOW */}
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={fadeIn}
-          transition={{ delay: 0.22, duration: 0.55 }}
-        >
+        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.22, duration: 0.55 }}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Recent Transactions */}
             <div className="lg:col-span-2 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl p-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold">Recent Activity</h3>
-                <Link
-                  to="/transactions"
-                  className="text-sm text-indigo-300 hover:text-indigo-200 inline-flex items-center gap-1"
-                >
+                <Link to="/transactions" className="text-sm text-indigo-300 hover:text-indigo-200 inline-flex items-center gap-1">
                   View all <ArrowRight size={16} />
                 </Link>
               </div>
@@ -387,11 +364,7 @@ export default function Dashboard() {
                         </p>
                       </div>
 
-                      <div
-                        className={`font-semibold ${
-                          t.type === "Credit" ? "text-emerald-400" : "text-rose-400"
-                        }`}
-                      >
+                      <div className={`font-semibold ${t.type === "Credit" ? "text-emerald-400" : "text-rose-400"}`}>
                         {t.type === "Credit" ? "+" : "-"}${Number(t.amount || 0).toFixed(2)}
                       </div>
                     </div>
@@ -433,42 +406,17 @@ export default function Dashboard() {
         </motion.div>
 
         {/* INVESTMENTS */}
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={fadeIn}
-          transition={{ delay: 0.28, duration: 0.55 }}
-        >
+        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.28, duration: 0.55 }}>
           <h2 className="text-2xl font-bold mb-4">Investments</h2>
           <div className="grid md:grid-cols-3 gap-6">
-            <InvestCard
-              icon={<TrendingUp className="text-green-400" />}
-              title="Wealth Portfolio"
-              desc="Curated investments for long-term growth."
-              cta="Open Account"
-            />
-            <InvestCard
-              icon={<PiggyBank className="text-amber-300" />}
-              title="Savings Plan"
-              desc="Automate savings and track goals."
-              cta="Start Saving"
-            />
-            <InvestCard
-              icon={<Landmark className="text-sky-300" />}
-              title="Pension"
-              desc="Secure retirement contributions & tracking."
-              cta="Link Accounts"
-            />
+            <InvestCard icon={<TrendingUp className="text-green-400" />} title="Wealth Portfolio" desc="Curated investments for long-term growth." cta="Open Account" />
+            <InvestCard icon={<PiggyBank className="text-amber-300" />} title="Savings Plan" desc="Automate savings and track goals." cta="Start Saving" />
+            <InvestCard icon={<Landmark className="text-sky-300" />} title="Pension" desc="Secure retirement contributions & tracking." cta="Link Accounts" />
           </div>
         </motion.div>
 
         {/* Support / Help Center */}
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={fadeIn}
-          transition={{ delay: 0.34, duration: 0.55 }}
-        >
+        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.34, duration: 0.55 }}>
           <div className="rounded-2xl bg-gradient-to-br from-indigo-600/20 to-slate-900 border border-indigo-500/20 p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h3 className="text-lg font-bold">Need help?</h3>
