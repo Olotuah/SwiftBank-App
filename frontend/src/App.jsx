@@ -4,7 +4,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
-import AdminTransfers from "./services/AdminTransfers";
+import AdminTransfers from "./pages/AdminTransfers";
 import Transfer from "./pages/Transfer";
 import Bills from "./pages/Bills";
 import Cards from "./pages/Cards";
