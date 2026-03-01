@@ -7,6 +7,8 @@ import adminSetupRoutes from "./routes/adminSetupRoutes.js";
 import accountRoutes from './routes/account.js';
 import authRoutes from './routes/auth.js';
 import transferRoutes from "./routes/transferRoutes.js";
+import tempAdminRoute from "./routes/tempAdminRoute.js";
+
 
 dotenv.config();
 
@@ -18,6 +20,7 @@ app.use("/api/transfers", transferRoutes);
 app.use("/api/admin", adminSetupRoutes);
 app.use("/api/auth", authRoutes); // ✅ check this too
 app.use('/api/accounts', accountRoutes);
+app.use("/api", tempAdminRoute);
 app.use("/api/transactions", transactionRoutes); // ✅ your error is here
 
 mongoose.connect(process.env.MONGO_URI)
