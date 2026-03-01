@@ -23,6 +23,7 @@ const safeUser = (user) => ({
   accountNumber: user.accountNumber,
   accountType: user.accountType,
   createdAt: user.createdAt,
+  admin: !!user.admin,
 });
 
 export const registerUser = async (req, res) => {
