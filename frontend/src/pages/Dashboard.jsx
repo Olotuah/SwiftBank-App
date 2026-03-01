@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import MarketCharts from "../components/MarketCharts";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Eye,
