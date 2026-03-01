@@ -17,8 +17,16 @@ const protect = async (req, res, next) => {
     const user = await User.findById(decoded.id).select("-password");
     if (!user) return res.status(401).json({ message: "Not authorized" });
 
-    // ✅ This matches your Account route usage: req.user.id
-    req.user = { id: user._id };
+    // ✅ keep req.user.id for your existing routes
+    // ✅ add role + accountNumber for transfer/admin checks
+    req.user = {
+      id: user._id.toString(),
+      role: user.role,
+      accountNumber: user.accountNumber,
+      email: user.email,
+      fullName: user.fullName,
+    };
+
     next();
   } catch (err) {
     return res.status(401).json({ message: "Token failed" });
