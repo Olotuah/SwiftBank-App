@@ -4,6 +4,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
+import AdminTransfers from "./pages/AdminTransfers";
 import Transfer from "./pages/Transfer";
 import Bills from "./pages/Bills";
 import Cards from "./pages/Cards";
@@ -22,6 +23,7 @@ function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/transactions" element={<Transactions />} />
+      <Route path="/admin/transfers" element={<AdminTransfers />} />
       <Route path="/transfer" element={<Transfer />} />
       <Route path="/bills" element={<Bills />} />
       <Route path="/cards" element={<Cards />} />
