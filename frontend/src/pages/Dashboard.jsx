@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Eye,
   EyeOff,
@@ -12,32 +13,63 @@ import {
   MapPin,
   Smartphone,
   RefreshCcw,
+  Settings,
 } from "lucide-react";
+import { getStoredUser, logout as doLogout } from "../services/authService";
+import { toast, Toaster } from "react-hot-toast";
 
-export default function PremiumBankDashboard() {
+export default function Dashboard() {
+  const navigate = useNavigate();
   const [hideBalance, setHideBalance] = useState(false);
 
+  const user = useMemo(() => getStoredUser(), []);
+  const firstName = user?.firstName || user?.name?.split?.(" ")?.[0] || "there";
+
   const fadeIn = {
-    hidden: { opacity: 0, y: 20 },
+    hidden: { opacity: 0, y: 16 },
     visible: { opacity: 1, y: 0 },
   };
 
+  const handleLogout = () => {
+    doLogout();
+    toast.success("Logged out");
+    navigate("/login");
+  };
+
+  const shortcuts = [
+    { icon: <Smartphone size={18} />, label: "Top-Up", to: "/topup" },
+    { icon: <RefreshCcw size={18} />, label: "FX Sales", to: "/fx" },
+    { icon: <MapPin size={18} />, label: "Near Me", to: "/near-me" },
+    { icon: <ArrowUpRight size={18} />, label: "Buy Data", to: "/buy-data" },
+    { icon: <ArrowDownLeft size={18} />, label: "Transfer", to: "/transfer" },
+    { icon: <CreditCard size={18} />, label: "Cards", to: "/cards" },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white p-6">
+      <Toaster position="top-right" />
       <div className="max-w-7xl mx-auto space-y-8">
 
         {/* HEADER */}
-        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ duration: 0.6 }}>
-          <div className="flex justify-between items-center">
+        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ duration: 0.55 }}>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-3xl font-bold">Welcome back 👋</h1>
+              <h1 className="text-3xl font-bold">Welcome back, {firstName} 👋</h1>
               <p className="text-slate-400">Here’s your financial overview</p>
             </div>
-            <div className="flex gap-3">
-              <button className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 transition">
+
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/profile"
+                className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 transition"
+              >
                 Profile
-              </button>
-              <button className="px-4 py-2 rounded-2xl border border-slate-700 hover:bg-slate-800 transition">
+              </Link>
+
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 rounded-2xl border border-slate-700 hover:bg-slate-800 transition"
+              >
                 Logout
               </button>
             </div>
@@ -45,140 +77,134 @@ export default function PremiumBankDashboard() {
         </motion.div>
 
         {/* BALANCE + LIMIT ALERT */}
-        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.1 }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={fadeIn}
+          transition={{ delay: 0.08, duration: 0.55 }}
+          className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+        >
           {/* BALANCE CARD */}
           <div className="lg:col-span-2 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl p-6 space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-start gap-4">
               <div>
                 <p className="text-slate-400">Total Balance</p>
                 <h2 className="text-3xl font-bold">
                   {hideBalance ? "••••••••" : "$24,890.50"}
                 </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Main Account • Updated just now
+                </p>
               </div>
+
               <button
-                onClick={() => setHideBalance(!hideBalance)}
+                onClick={() => setHideBalance((v) => !v)}
                 className="p-2 rounded-full hover:bg-slate-800 transition"
+                title={hideBalance ? "Show balance" : "Hide balance"}
               >
                 {hideBalance ? <Eye size={20} /> : <EyeOff size={20} />}
               </button>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-800 p-4 rounded-xl">
+              <div className="bg-slate-800/70 p-4 rounded-xl border border-slate-700">
                 <p className="text-sm text-slate-400">Savings</p>
-                <p className="text-xl font-semibold">$10,200</p>
+                <p className="text-xl font-semibold">{hideBalance ? "••••" : "$10,200"}</p>
               </div>
-              <div className="bg-slate-800 p-4 rounded-xl">
+              <div className="bg-slate-800/70 p-4 rounded-xl border border-slate-700">
                 <p className="text-sm text-slate-400">Checking</p>
-                <p className="text-xl font-semibold">$14,690</p>
+                <p className="text-xl font-semibold">{hideBalance ? "••••" : "$14,690"}</p>
               </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Link
+                to="/account-details"
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 transition text-sm"
+              >
+                View Account Details
+              </Link>
+              <Link
+                to="/fund-account"
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 transition text-sm"
+              >
+                Fund Account
+              </Link>
             </div>
           </div>
 
           {/* LIMIT CARD */}
-          <div className="rounded-2xl bg-gradient-to-br from-red-600 to-red-500 shadow-xl p-6 space-y-4">
-            <h3 className="text-lg font-bold">Need Higher Limits?</h3>
-            <p className="text-sm">
-              You can adjust your transaction limits easily in your profile settings.
-            </p>
-            <button className="bg-white text-red-600 hover:bg-slate-200 px-4 py-2 rounded-2xl transition">
+          <div className="rounded-2xl bg-gradient-to-br from-amber-500/25 to-rose-500/25 border border-amber-400/30 shadow-xl p-6 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold">Need Higher Limits?</h3>
+                <p className="text-sm text-slate-200/80 mt-1">
+                  You can adjust your limits in your profile settings.
+                </p>
+              </div>
+              <Settings className="opacity-80" />
+            </div>
+
+            <Link
+              to="/profile?tab=limits"
+              className="inline-flex items-center justify-center bg-white text-slate-900 hover:bg-slate-200 px-4 py-2 rounded-2xl transition text-sm font-semibold"
+            >
               Adjust Limits
-            </button>
+            </Link>
           </div>
         </motion.div>
 
         {/* SHORTCUTS */}
-        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.2 }}>
-          <h2 className="text-2xl font-bold mb-4">Shortcuts</h2>
+        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.16, duration: 0.55 }}>
+          <div className="flex items-end justify-between gap-3 mb-4">
+            <h2 className="text-2xl font-bold">Shortcuts</h2>
+            <p className="text-sm text-slate-400">Quick actions you’ll use daily</p>
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {[
-              { icon: <Smartphone />, label: "Top-Up" },
-              { icon: <RefreshCcw />, label: "FX Sales" },
-              { icon: <MapPin />, label: "Near Me" },
-              { icon: <ArrowUpRight />, label: "Buy Data" },
-              { icon: <ArrowDownLeft />, label: "Transfer" },
-              { icon: <CreditCard />, label: "Cards" },
-            ].map((item, index) => (
-              <motion.div
-                key={index}
-                whileHover={{ scale: 1.05 }}
-                className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer shadow-lg"
-              >
-                {item.icon}
-                <span className="text-sm">{item.label}</span>
-              </motion.div>
+            {shortcuts.map((item, index) => (
+              <Link key={index} to={item.to}>
+                <motion.div
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer shadow-lg hover:border-indigo-500/60 transition"
+                >
+                  <div className="h-10 w-10 rounded-xl bg-slate-800 flex items-center justify-center border border-slate-700">
+                    {item.icon}
+                  </div>
+                  <span className="text-sm">{item.label}</span>
+                </motion.div>
+              </Link>
             ))}
           </div>
         </motion.div>
 
-        {/* INVESTMENTS */}
-        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.3 }}>
+        {/* INVESTMENTS (we can wire later) */}
+        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.24, duration: 0.55 }}>
           <h2 className="text-2xl font-bold mb-4">Investments</h2>
           <div className="grid md:grid-cols-3 gap-6">
-
-            {[
-              { icon: <TrendingUp className="text-green-500" />, title: "Wealth Portfolio", text: "Diversified global investments curated for long-term growth." },
-              { icon: <PiggyBank className="text-yellow-500" />, title: "Savings Plan", text: "Automate savings and earn competitive interest rates." },
-              { icon: <Landmark className="text-blue-500" />, title: "Pension", text: "Secure your future with flexible pension contributions." }
-            ].map((item, i) => (
-              <div key={i} className="rounded-2xl bg-slate-900 border border-slate-800 shadow-xl p-6 space-y-3">
-                {item.icon}
-                <h3 className="text-lg font-bold">{item.title}</h3>
-                <p className="text-sm text-slate-400">{item.text}</p>
-                <button className="rounded-2xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 transition">
-                  Get Started
-                </button>
-              </div>
-            ))}
-
+            <InvestCard icon={<TrendingUp className="text-green-400" />} title="Wealth Portfolio" desc="Curated investments for long-term growth." cta="Open Account" />
+            <InvestCard icon={<PiggyBank className="text-amber-300" />} title="Savings Plan" desc="Automate savings and track goals." cta="Start Saving" />
+            <InvestCard icon={<Landmark className="text-sky-300" />} title="Pension" desc="Secure retirement contributions & tracking." cta="Link Accounts" />
           </div>
         </motion.div>
-
-        {/* CREDIT + LOANS */}
-        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.4 }} className="grid md:grid-cols-2 gap-6">
-
-          <div className="rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 shadow-xl p-6 space-y-3">
-            <h3 className="text-lg font-bold">Quick Credit</h3>
-            <p className="text-sm">Get instant loans with minimal paperwork.</p>
-            <button className="bg-white text-indigo-600 px-4 py-2 rounded-2xl transition">
-              Apply Now
-            </button>
-          </div>
-
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 shadow-xl p-6 space-y-3">
-            <h3 className="text-lg font-bold">Loan Calculator</h3>
-            <input
-              placeholder="Enter Amount"
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2"
-            />
-            <button className="rounded-2xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 transition">
-              Calculate
-            </button>
-          </div>
-
-        </motion.div>
-
-        {/* FX + FINANCES */}
-        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.5 }} className="grid md:grid-cols-2 gap-6">
-
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 shadow-xl p-6 space-y-3">
-            <h3 className="text-lg font-bold">FX Stats</h3>
-            <p className="text-sm text-slate-400">USD/EUR: 0.92</p>
-            <p className="text-sm text-slate-400">USD/GBP: 0.78</p>
-            <p className="text-sm text-slate-400">USD/NGN: 1500</p>
-          </div>
-
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 shadow-xl p-6 flex items-center justify-center text-center">
-            <div>
-              <h3 className="text-lg font-bold">Finances</h3>
-              <p className="text-slate-400">Coming Soon</p>
-            </div>
-          </div>
-
-        </motion.div>
-
       </div>
+    </div>
+  );
+}
+
+function InvestCard({ icon, title, desc, cta }) {
+  return (
+    <div className="rounded-2xl bg-slate-900 border border-slate-800 shadow-xl p-6 space-y-3 hover:border-indigo-500/40 transition">
+      {icon}
+      <h3 className="text-lg font-bold">{title}</h3>
+      <p className="text-sm text-slate-400">{desc}</p>
+      <button
+        onClick={() => toast("Feature coming soon")}
+        className="rounded-2xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 transition text-sm"
+      >
+        {cta}
+      </button>
     </div>
   );
 }
