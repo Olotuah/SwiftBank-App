@@ -14,7 +14,7 @@ const UserSchema = new mongoose.Schema(
     balance: { type: Number, default: 0 },
 
     // ✅ add this
-    role: { type: String, enum: ["user", "admin"], default: "user" },
+    admin: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
