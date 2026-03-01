@@ -8,6 +8,10 @@ import Transfer from "./pages/Transfer";
 import Bills from "./pages/Bills";
 import Cards from "./pages/Cards";
 import Profile from "./pages/Profile";
+import TopUp from "./pages/TopUp";
+import FxSales from "./pages/FxSales";
+import BuyData from "./pages/BuyData";
+import NearMe from "./pages/NearMe";
 
 
 function App() {
@@ -21,6 +25,10 @@ function App() {
       <Route path="/transfer" element={<Transfer />} />
       <Route path="/bills" element={<Bills />} />
       <Route path="/cards" element={<Cards />} />
+      <Route path="/topup" element={<TopUp />} />
+      <Route path="/fx" element={<FxSales />} />
+      <Route path="/buy-data" element={<BuyData />} />
+      <Route path="/near-me" element={<NearMe />} />
       <Route path="/profile" element={<Profile />} />
     </Routes>
   );
