@@ -168,6 +168,8 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
+        <MarketCharts />
+
         {/* BALANCE + LIMIT ALERT */}
         <motion.div
           initial="hidden"
@@ -266,6 +268,8 @@ export default function Dashboard() {
             ))}
           </div>
         </motion.div>
+
+        <MarketCharts />
 
         {/* MORE REAL BANK ACTIVITIES BELOW (THIS IS WHAT YOU ASKED FOR) */}
         <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.22, duration: 0.55 }}>
