@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import MarketCharts from "../components/MarketCharts";
 import { Link, useNavigate } from "react-router-dom";
@@ -32,9 +32,10 @@ export default function Dashboard() {
   const [accounts, setAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const user = useMemo(() => getStoredUser(), []);
-  const firstName = user?.fullName?.split?.(" ")?.[0] || "there"; // ✅ FIXED for your model
+  const firstName = user?.fullName?.split?.(" ")?.[0] || "there";
 
   const fadeIn = {
     hidden: { opacity: 0, y: 16 },
@@ -56,35 +57,68 @@ export default function Dashboard() {
     { icon: <CreditCard size={18} />, label: "Cards", to: "/cards" },
   ];
 
-  // ✅ Load real data
-  useEffect(() => {
-    let alive = true;
+  // ✅ ONE function that loads dashboard data (reusable for auto refresh + button)
+  const loadDashboard = useCallback(
+    async ({ silent = false } = {}) => {
+      let toastShown = false;
 
-    const load = async () => {
       try {
-        setLoading(true);
+        if (!silent) setLoading(true);
+        if (silent) setRefreshing(true);
+
         const [accRes, txRes] = await Promise.all([
           api.get("/accounts"),
           api.get("/transactions"),
         ]);
 
-        if (!alive) return;
-
         setAccounts(accRes.data || []);
         setTransactions(txRes.data || []);
       } catch (err) {
         console.error(err);
-        toast.error("Failed to load dashboard data");
+
+        // If token expired or not authorized, redirect cleanly
+        const msg = err?.response?.data?.message;
+        const status = err?.response?.status;
+
+        if (status === 401) {
+          doLogout();
+          if (!toastShown) toast.error("Session expired. Please log in again.");
+          toastShown = true;
+          navigate("/login");
+          return;
+        }
+
+        if (!toastShown) toast.error("Failed to load dashboard data");
+        toastShown = true;
       } finally {
-        if (alive) setLoading(false);
+        if (!silent) setLoading(false);
+        if (silent) setRefreshing(false);
       }
+    },
+    [navigate]
+  );
+
+  // ✅ Load once, then auto-refresh every 10 seconds
+  useEffect(() => {
+    let alive = true;
+
+    const run = async () => {
+      if (!alive) return;
+      await loadDashboard({ silent: false });
     };
 
-    load();
+    run();
+
+    const interval = setInterval(() => {
+      if (!alive) return;
+      loadDashboard({ silent: true }); // silent refresh (no loading screen)
+    }, 10000);
+
     return () => {
       alive = false;
+      clearInterval(interval);
     };
-  }, []);
+  }, [loadDashboard]);
 
   const totalBalance = useMemo(() => {
     return accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
@@ -97,7 +131,6 @@ export default function Dashboard() {
   const recentTx = transactions.slice(0, 6);
 
   const monthSpent = useMemo(() => {
-    // simple “spent this month” estimate from debits
     const now = new Date();
     const m = now.getMonth();
     const y = now.getFullYear();
@@ -127,9 +160,13 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white p-6">
       <Toaster position="top-right" />
       <div className="max-w-7xl mx-auto space-y-8">
-
         {/* HEADER */}
-        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ duration: 0.55 }}>
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={fadeIn}
+          transition={{ duration: 0.55 }}
+        >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-3xl font-bold">Welcome back, {firstName} 👋</h1>
@@ -145,7 +182,20 @@ export default function Dashboard() {
                 <span className="text-sm">Alerts</span>
               </button>
 
-              <Link to="/profile" className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 transition">
+              {/* ✅ manual refresh */}
+              <button
+                onClick={() => loadDashboard({ silent: true })}
+                className="px-3 py-2 rounded-2xl border border-slate-700 hover:bg-slate-800 transition inline-flex items-center gap-2"
+                title="Refresh dashboard"
+              >
+                <RefreshCcw size={18} className={refreshing ? "animate-spin" : ""} />
+                <span className="text-sm">{refreshing ? "Refreshing" : "Refresh"}</span>
+              </button>
+
+              <Link
+                to="/profile"
+                className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 transition"
+              >
                 Profile
               </Link>
 
@@ -159,6 +209,7 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
+        {/* ✅ ONE MarketCharts */}
         <MarketCharts />
 
         {/* BALANCE + LIMIT ALERT */}
@@ -175,10 +226,14 @@ export default function Dashboard() {
               <div>
                 <p className="text-slate-400">Total Balance</p>
                 <h2 className="text-3xl font-bold">
-                  {loading ? "Loading..." : hideBalance ? "••••••••" : `$${totalBalance.toLocaleString()}`}
+                  {loading
+                    ? "Loading..."
+                    : hideBalance
+                    ? "••••••••"
+                    : `$${totalBalance.toLocaleString()}`}
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  {mainAccount ? "Main Account • Updated just now" : "No accounts found"}
+                  {mainAccount ? "Main Account • Auto-updating" : "No accounts found"}
                 </p>
               </div>
 
@@ -198,10 +253,16 @@ export default function Dashboard() {
             </div>
 
             <div className="flex flex-wrap gap-2 pt-1">
-              <Link to="/account-details" className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 transition text-sm">
+              <Link
+                to="/account-details"
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 transition text-sm"
+              >
                 View Account Details
               </Link>
-              <Link to="/fund-account" className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 transition text-sm">
+              <Link
+                to="/fund-account"
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 transition text-sm"
+              >
                 Fund Account
               </Link>
             </div>
@@ -212,9 +273,7 @@ export default function Dashboard() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-lg font-bold">Need Higher Limits?</h3>
-                <p className="text-sm text-slate-200/80 mt-1">
-                  Adjust limits in your profile settings.
-                </p>
+                <p className="text-sm text-slate-200/80 mt-1">Adjust limits in your profile settings.</p>
               </div>
               <Settings className="opacity-80" />
             </div>
@@ -225,9 +284,7 @@ export default function Dashboard() {
             >
               Adjust Limits
             </Link>
-            
 
-            {/* Extra “activity” */}
             <div className="pt-2 text-xs text-slate-200/80 space-y-1">
               <p>• Daily limit: $5,000</p>
               <p>• Single transfer: $1,000</p>
@@ -237,16 +294,39 @@ export default function Dashboard() {
         </motion.div>
 
         {/* TOP METRICS STRIP */}
-        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.05, duration: 0.55 }}>
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={fadeIn}
+          transition={{ delay: 0.05, duration: 0.55 }}
+        >
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <MetricCard title="This Month Income" value={hideBalance ? "••••" : `$${monthIncome.toLocaleString()}`} hint="Credits" />
-            <MetricCard title="This Month Spent" value={hideBalance ? "••••" : `$${monthSpent.toLocaleString()}`} hint="Debits" />
-            <MetricCard title="Security Status" value="Protected" hint="Encrypted sessions" icon={<ShieldCheck className="text-emerald-400" />} />
+            <MetricCard
+              title="This Month Income"
+              value={hideBalance ? "••••" : `$${monthIncome.toLocaleString()}`}
+              hint="Credits"
+            />
+            <MetricCard
+              title="This Month Spent"
+              value={hideBalance ? "••••" : `$${monthSpent.toLocaleString()}`}
+              hint="Debits"
+            />
+            <MetricCard
+              title="Security Status"
+              value="Protected"
+              hint="Encrypted sessions"
+              icon={<ShieldCheck className="text-emerald-400" />}
+            />
           </div>
         </motion.div>
 
         {/* SHORTCUTS */}
-        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.16, duration: 0.55 }}>
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={fadeIn}
+          transition={{ delay: 0.16, duration: 0.55 }}
+        >
           <div className="flex items-end justify-between gap-3 mb-4">
             <h2 className="text-2xl font-bold">Shortcuts</h2>
             <p className="text-sm text-slate-400">Quick actions you’ll use daily</p>
@@ -270,17 +350,22 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        <MarketCharts />
-
-        {/* MORE REAL BANK ACTIVITIES BELOW (THIS IS WHAT YOU ASKED FOR) */}
-        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.22, duration: 0.55 }}>
+        {/* MORE REAL BANK ACTIVITIES BELOW */}
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={fadeIn}
+          transition={{ delay: 0.22, duration: 0.55 }}
+        >
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
             {/* Recent Transactions */}
             <div className="lg:col-span-2 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl p-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold">Recent Activity</h3>
-                <Link to="/transactions" className="text-sm text-indigo-300 hover:text-indigo-200 inline-flex items-center gap-1">
+                <Link
+                  to="/transactions"
+                  className="text-sm text-indigo-300 hover:text-indigo-200 inline-flex items-center gap-1"
+                >
                   View all <ArrowRight size={16} />
                 </Link>
               </div>
@@ -302,7 +387,11 @@ export default function Dashboard() {
                         </p>
                       </div>
 
-                      <div className={`font-semibold ${t.type === "Credit" ? "text-emerald-400" : "text-rose-400"}`}>
+                      <div
+                        className={`font-semibold ${
+                          t.type === "Credit" ? "text-emerald-400" : "text-rose-400"
+                        }`}
+                      >
                         {t.type === "Credit" ? "+" : "-"}${Number(t.amount || 0).toFixed(2)}
                       </div>
                     </div>
@@ -344,17 +433,42 @@ export default function Dashboard() {
         </motion.div>
 
         {/* INVESTMENTS */}
-        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.28, duration: 0.55 }}>
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={fadeIn}
+          transition={{ delay: 0.28, duration: 0.55 }}
+        >
           <h2 className="text-2xl font-bold mb-4">Investments</h2>
           <div className="grid md:grid-cols-3 gap-6">
-            <InvestCard icon={<TrendingUp className="text-green-400" />} title="Wealth Portfolio" desc="Curated investments for long-term growth." cta="Open Account" />
-            <InvestCard icon={<PiggyBank className="text-amber-300" />} title="Savings Plan" desc="Automate savings and track goals." cta="Start Saving" />
-            <InvestCard icon={<Landmark className="text-sky-300" />} title="Pension" desc="Secure retirement contributions & tracking." cta="Link Accounts" />
+            <InvestCard
+              icon={<TrendingUp className="text-green-400" />}
+              title="Wealth Portfolio"
+              desc="Curated investments for long-term growth."
+              cta="Open Account"
+            />
+            <InvestCard
+              icon={<PiggyBank className="text-amber-300" />}
+              title="Savings Plan"
+              desc="Automate savings and track goals."
+              cta="Start Saving"
+            />
+            <InvestCard
+              icon={<Landmark className="text-sky-300" />}
+              title="Pension"
+              desc="Secure retirement contributions & tracking."
+              cta="Link Accounts"
+            />
           </div>
         </motion.div>
 
-        {/* Support / Help Center (more “activity” at bottom) */}
-        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.34, duration: 0.55 }}>
+        {/* Support / Help Center */}
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={fadeIn}
+          transition={{ delay: 0.34, duration: 0.55 }}
+        >
           <div className="rounded-2xl bg-gradient-to-br from-indigo-600/20 to-slate-900 border border-indigo-500/20 p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h3 className="text-lg font-bold">Need help?</h3>
@@ -371,7 +485,6 @@ export default function Dashboard() {
             </button>
           </div>
         </motion.div>
-
       </div>
     </div>
   );
@@ -396,7 +509,9 @@ function SmallAccountCard({ label, value, hide }) {
   return (
     <div className="bg-slate-800/70 p-4 rounded-xl border border-slate-700">
       <p className="text-sm text-slate-400">{label}</p>
-      <p className="text-xl font-semibold">{hide ? "••••" : `$${Number(value || 0).toLocaleString()}`}</p>
+      <p className="text-xl font-semibold">
+        {hide ? "••••" : `$${Number(value || 0).toLocaleString()}`}
+      </p>
     </div>
   );
 }
