@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import api from "../utils/api";
 import { toast, Toaster } from "react-hot-toast";
+import { register } from "../services/authService";
 
 export default function Register() {
   const [form, setForm] = useState({
-    fullName: "",  // ✅ Changed from name → fullName
+    fullName: "",
     email: "",
     password: "",
   });
+
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -19,10 +20,11 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+
     try {
-      await api.post("/auth/register", form);
-      toast.success("Registration successful, please log in.");
-      navigate("/login");
+      await register(form); // ✅ uses authService (stores token + user)
+      toast.success("Registration successful!");
+      navigate("/dashboard"); // ✅ take user straight inside
     } catch (err) {
       toast.error(err?.response?.data?.message || "Registration failed");
     } finally {
@@ -31,13 +33,17 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-gray-900 to-gray-800 text-white font-manrope">
-      <Toaster />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-gray-900 to-gray-800 text-white font-manrope px-4">
+      <Toaster position="top-right" />
+
       <form
         onSubmit={handleSubmit}
-        className="bg-white/10 p-8 rounded-xl space-y-4 w-full max-w-md"
+        className="bg-white/10 p-8 rounded-xl space-y-4 w-full max-w-md border border-white/10 shadow-xl"
       >
         <h2 className="text-3xl font-bold font-inter">Register for SwiftBank</h2>
+        <p className="text-sm text-gray-300">
+          Create an account to access your dashboard.
+        </p>
 
         <input
           type="text"
@@ -45,7 +51,7 @@ export default function Register() {
           value={form.fullName}
           onChange={handleChange}
           placeholder="Full Name"
-          className="w-full p-3 rounded bg-white/20 text-white"
+          className="w-full p-3 rounded bg-white/20 text-white placeholder-gray-300 outline-none focus:ring-2 focus:ring-blue-600"
           required
         />
 
@@ -55,7 +61,7 @@ export default function Register() {
           value={form.email}
           onChange={handleChange}
           placeholder="Email"
-          className="w-full p-3 rounded bg-white/20 text-white"
+          className="w-full p-3 rounded bg-white/20 text-white placeholder-gray-300 outline-none focus:ring-2 focus:ring-blue-600"
           required
         />
 
@@ -65,20 +71,23 @@ export default function Register() {
           value={form.password}
           onChange={handleChange}
           placeholder="Password"
-          className="w-full p-3 rounded bg-white/20 text-white"
+          className="w-full p-3 rounded bg-white/20 text-white placeholder-gray-300 outline-none focus:ring-2 focus:ring-blue-600"
           required
         />
 
         <button
           type="submit"
-          className="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded font-inter"
           disabled={loading}
+          className="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded font-inter font-semibold disabled:opacity-60 transition"
         >
           {loading ? "Registering..." : "Register"}
         </button>
 
         <p className="text-center text-sm text-gray-400">
-          Already have an account? <Link to="/login" className="text-blue-400">Login</Link>
+          Already have an account?{" "}
+          <Link to="/login" className="text-blue-400 hover:underline">
+            Login
+          </Link>
         </p>
       </form>
     </div>
