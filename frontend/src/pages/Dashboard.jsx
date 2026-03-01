@@ -159,15 +159,6 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* TOP METRICS STRIP */}
-        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.05, duration: 0.55 }}>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <MetricCard title="This Month Income" value={hideBalance ? "••••" : `$${monthIncome.toLocaleString()}`} hint="Credits" />
-            <MetricCard title="This Month Spent" value={hideBalance ? "••••" : `$${monthSpent.toLocaleString()}`} hint="Debits" />
-            <MetricCard title="Security Status" value="Protected" hint="Encrypted sessions" icon={<ShieldCheck className="text-emerald-400" />} />
-          </div>
-        </motion.div>
-
         <MarketCharts />
 
         {/* BALANCE + LIMIT ALERT */}
@@ -234,6 +225,15 @@ export default function Dashboard() {
             >
               Adjust Limits
             </Link>
+
+             {/* TOP METRICS STRIP */}
+        <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.05, duration: 0.55 }}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <MetricCard title="This Month Income" value={hideBalance ? "••••" : `$${monthIncome.toLocaleString()}`} hint="Credits" />
+            <MetricCard title="This Month Spent" value={hideBalance ? "••••" : `$${monthSpent.toLocaleString()}`} hint="Debits" />
+            <MetricCard title="Security Status" value="Protected" hint="Encrypted sessions" icon={<ShieldCheck className="text-emerald-400" />} />
+          </div>
+        </motion.div>
 
             {/* Extra “activity” */}
             <div className="pt-2 text-xs text-slate-200/80 space-y-1">
