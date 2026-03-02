@@ -31,7 +31,7 @@ export default function Transfer() {
   // ✅ me state (from backend)
   const [me, setMe] = useState(null);
 
-  // ✅ cached user state (from localStorage) — helps when /users/me isn’t updated yet
+  // ✅ cached user state (from localStorage) — used as fallback
   const [storedUser, setStoredUser] = useState(() => {
     try {
       const raw = localStorage.getItem("user");
@@ -41,7 +41,7 @@ export default function Transfer() {
     }
   });
 
-  // ✅ pin flags (backend OR localStorage)
+  // ✅ derived pin flag (for UI hints)
   const hasTransferPin = !!(me?.hasTransferPin || storedUser?.hasTransferPin);
 
   // ✅ PIN modal
@@ -69,34 +69,39 @@ export default function Transfer() {
 
   // ✅ helper: refresh user from backend + localStorage
   const refreshUser = async () => {
-    // Always refresh localStorage snapshot
+    // 1) refresh localStorage snapshot
     try {
       const raw = localStorage.getItem("user");
       setStoredUser(raw ? JSON.parse(raw) : null);
     } catch {}
 
-    // Try backend /users/me
+    // 2) refresh from backend
     try {
-      const res = await api.get("/users/me"); // make sure this route exists
+      const res = await api.get("/users/me", {
+        headers: { "Cache-Control": "no-cache" },
+      });
+
       // support both {user: {...}} or {...}
       const data = res.data?.user ? res.data.user : res.data;
+
       setMe(data || null);
 
-      // OPTIONAL: keep localStorage synced if backend returns pin state
-      // (helps Transfer detect immediately even if other pages don’t refresh)
+      // keep localStorage synced
       if (data) {
         const currentRaw = localStorage.getItem("user");
         const current = currentRaw ? JSON.parse(currentRaw) : {};
-        localStorage.setItem("user", JSON.stringify({ ...current, ...data }));
-        setStoredUser({ ...current, ...data });
+        const merged = { ...current, ...data };
+        localStorage.setItem("user", JSON.stringify(merged));
+        setStoredUser(merged);
       }
+
+      return data || null;
     } catch (e) {
-      // don’t hard-fail UI
-      // console.log("Could not load /users/me", e?.response?.status);
+      return null;
     }
   };
 
-  // ✅ load current user (PIN info) on mount
+  // ✅ load current user on mount
   useEffect(() => {
     refreshUser();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,7 +115,7 @@ export default function Transfer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ refresh when localStorage changes (another tab / same tab update)
+  // ✅ refresh when localStorage changes (another tab)
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === "user") {
@@ -148,16 +153,22 @@ export default function Transfer() {
     return null;
   };
 
+  // ✅ FIXED: do NOT use stale hasTransferPin after awaiting refreshUser
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     const err = validateBeforeAuth();
     if (err) return toast.error(err);
 
-    // ✅ always re-check pin state right before continuing
-    await refreshUser();
+    // 🔥 get fresh server truth
+    const latest = await refreshUser();
 
-    if (!hasTransferPin) {
+    const pinExists =
+      !!latest?.hasTransferPin ||
+      !!storedUser?.hasTransferPin ||
+      !!me?.hasTransferPin;
+
+    if (!pinExists) {
       setShowNoPinModal(true);
       return;
     }
@@ -167,7 +178,7 @@ export default function Transfer() {
 
   const verifyPinAndSubmit = async () => {
     const pin = pinInput.trim();
-    if (!(pin.length === 4 || pin.length === 6)) {
+    if (!/^\d{4}$/.test(pin) && !/^\d{6}$/.test(pin)) {
       toast.error("Enter your 4 or 6 digit transfer PIN.");
       return;
     }
@@ -175,7 +186,7 @@ export default function Transfer() {
     setLoading(true);
     try {
       // ✅ verify pin server-side
-      await api.post("/users/verify-pin", { pin }); // make sure this route exists
+      await api.post("/users/verify-pin", { pin });
 
       // ✅ create transfer
       await api.post("/transfers", {
