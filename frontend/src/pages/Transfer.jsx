@@ -13,7 +13,6 @@ import {
   KeyRound,
 } from "lucide-react";
 import api from "../utils/api";
-import { getStoredUser } from "../services/authService";
 
 export default function Transfer() {
   const navigate = useNavigate();
@@ -28,19 +27,18 @@ export default function Transfer() {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // ✅ PIN states
+  // ✅ user + pin state
+  const [me, setMe] = useState(null);
+  const hasTransferPin = !!me?.hasTransferPin;
+
+  // ✅ PIN modal
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinInput, setPinInput] = useState("");
 
-  // ✅ If user has no PIN yet, show "create PIN" modal instead
-  const [showCreatePinModal, setShowCreatePinModal] = useState(false);
-  const [newPin, setNewPin] = useState("");
-  const [confirmPin, setConfirmPin] = useState("");
+  // ✅ no pin prompt modal
+  const [showNoPinModal, setShowNoPinModal] = useState(false);
 
   const [successState, setSuccessState] = useState(null); // null | "pending"
-
-  const storedUser = useMemo(() => getStoredUser(), []);
-  const [pinSet, setPinSet] = useState(!!storedUser?.pinSet);
 
   // ✅ load accounts
   useEffect(() => {
@@ -50,9 +48,24 @@ export default function Transfer() {
         setAccounts(res.data || []);
       } catch (e) {
         console.error(e);
+        toast.error("Failed to load accounts");
       }
     };
     load();
+  }, []);
+
+  // ✅ load current user (to know if PIN exists)
+  useEffect(() => {
+    const loadMe = async () => {
+      try {
+        const res = await api.get("/users/me"); // 👈 adjust if your route differs
+        setMe(res.data);
+      } catch (e) {
+        console.error(e);
+        // don’t hard fail UI, but show message
+      }
+    };
+    loadMe();
   }, []);
 
   const fromAccountObj = useMemo(() => {
@@ -65,7 +78,7 @@ export default function Transfer() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const validateBeforePin = () => {
+  const validateBeforeAuth = () => {
     const to = form.toAccount.trim();
     const amt = Number(form.amount);
 
@@ -83,71 +96,37 @@ export default function Transfer() {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    const err = validateBeforePin();
+    const err = validateBeforeAuth();
     if (err) return toast.error(err);
 
-    // ✅ If no PIN yet → force create PIN modal
-    if (!pinSet) {
-      setShowCreatePinModal(true);
-      toast("Create a transfer PIN to continue", { icon: "🔑" });
+    // ✅ if no PIN, prompt user to set it
+    if (!hasTransferPin) {
+      setShowNoPinModal(true);
       return;
     }
 
-    // ✅ If PIN exists → ask for PIN
+    // ✅ if pin exists, ask for PIN
     setShowPinModal(true);
   };
 
-  const createPinNow = async () => {
-    const a = String(newPin).trim();
-    const b = String(confirmPin).trim();
-
-    if (!/^\d{4}$/.test(a)) return toast.error("PIN must be exactly 4 digits");
-    if (a !== b) return toast.error("PINs do not match");
-
-    setLoading(true);
-    try {
-      const res = await api.put("/users/pin", { pin: a });
-
-      // update local UI state
-      setPinSet(true);
-
-      // ✅ also update localStorage user.pinSet so dashboard/admin logic stays correct
-      const raw = localStorage.getItem("user");
-      const oldUser = raw ? JSON.parse(raw) : null;
-      if (oldUser) {
-        localStorage.setItem("user", JSON.stringify({ ...oldUser, pinSet: true }));
-      }
-
-      toast.success("Transfer PIN created!");
-      setShowCreatePinModal(false);
-      setNewPin("");
-      setConfirmPin("");
-
-      // open PIN entry to continue transfer immediately
-      setShowPinModal(true);
-    } catch (err) {
-      console.error(err);
-      toast.error(err?.response?.data?.message || "Failed to set PIN");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const verifyPinAndSubmit = async () => {
-    const pin = String(pinInput).trim();
-    if (!/^\d{4}$/.test(pin)) {
-      toast.error("Enter your 4-digit transfer PIN");
+    if (pinInput.trim().length !== 4 && pinInput.trim().length !== 6) {
+      toast.error("Enter your 4 or 6 digit transfer PIN.");
       return;
     }
 
     setLoading(true);
     try {
+      // ✅ Verify PIN server-side (recommended)
+      // You should have an endpoint like POST /users/verify-pin
+      await api.post("/users/verify-pin", { pin: pinInput.trim() }); // 👈 adjust if needed
+
+      // ✅ Create transfer request
       await api.post("/transfers", {
         fromAccountName: form.fromAccount,
         toAccount: form.toAccount.trim(),
         amount: Number(form.amount),
         note: form.note?.trim(),
-        pin, // ✅ send PIN to backend
       });
 
       setShowPinModal(false);
@@ -155,12 +134,12 @@ export default function Transfer() {
       setForm({ fromAccount: "Main Account", toAccount: "", amount: "", note: "" });
 
       setSuccessState("pending");
-      toast.success("Transfer submitted for approval!");
+      toast.success("Transfer submitted!");
 
       setTimeout(() => setSuccessState(null), 4500);
     } catch (error) {
       console.error(error);
-      toast.error(error?.response?.data?.message || "Transfer failed. Please try again.");
+      toast.error(error?.response?.data?.message || "Transfer failed");
     } finally {
       setLoading(false);
     }
@@ -175,7 +154,7 @@ export default function Transfer() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="rounded-2xl bg-slate-900 border border-slate-800 p-6 w-[92%] max-w-sm text-center">
             <Loader2 className="animate-spin mx-auto mb-3" />
-            <p className="text-lg font-semibold">Processing…</p>
+            <p className="text-lg font-semibold">Processing transfer…</p>
             <p className="text-sm text-slate-400 mt-1">Please don’t close this page</p>
           </div>
         </div>
@@ -229,7 +208,7 @@ export default function Transfer() {
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
                 <Lock size={14} />
-                Transfer PIN required
+                PIN verification enabled
               </div>
             </div>
           </div>
@@ -240,7 +219,6 @@ export default function Transfer() {
           {/* Form */}
           <div className="lg:col-span-2 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl p-6 sm:p-8">
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* From */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-slate-300 mb-2">From account</label>
@@ -259,13 +237,14 @@ export default function Transfer() {
                 <div>
                   <label className="block text-sm text-slate-300 mb-2">Available balance</label>
                   <div className="w-full p-3 rounded-2xl bg-slate-950 border border-slate-700">
-                    <span className="text-lg font-semibold">${availableBalance.toLocaleString()}</span>
+                    <span className="text-lg font-semibold">
+                      ${availableBalance.toLocaleString()}
+                    </span>
                     <span className="text-xs text-slate-400 ml-2">({form.fromAccount})</span>
                   </div>
                 </div>
               </div>
 
-              {/* To */}
               <div>
                 <label className="block text-sm text-slate-300 mb-2">
                   Recipient (Account number or email)
@@ -282,12 +261,8 @@ export default function Transfer() {
                     required
                   />
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  Transfers work only within SwiftBank ecosystem.
-                </p>
               </div>
 
-              {/* Amount + Note */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-slate-300 mb-2">Amount (USD)</label>
@@ -328,21 +303,6 @@ export default function Transfer() {
                 <Send size={18} />
                 Continue
               </button>
-
-              {!pinSet && (
-                <div className="rounded-2xl bg-amber-500/10 border border-amber-400/30 p-4 text-sm">
-                  <p className="font-semibold text-amber-200">Transfer PIN not set</p>
-                  <p className="text-xs text-slate-300 mt-1">
-                    You must create a transfer PIN before sending money.
-                  </p>
-                  <Link
-                    to="/profile?tab=security"
-                    className="inline-flex mt-3 text-xs text-amber-200 underline"
-                  >
-                    Go to Security Settings
-                  </Link>
-                </div>
-              )}
             </form>
           </div>
 
@@ -363,71 +323,54 @@ export default function Transfer() {
               </p>
             </div>
 
-            <div className="rounded-2xl bg-amber-500/10 border border-amber-400/30 p-4">
-              <p className="text-sm font-semibold text-amber-200">Approval System</p>
-              <p className="text-xs text-slate-300 mt-1">
-                Transfers are submitted as <span className="font-semibold">PENDING</span> and processed after approval.
-              </p>
-            </div>
+            {!hasTransferPin && (
+              <div className="rounded-2xl bg-amber-500/10 border border-amber-400/30 p-4">
+                <p className="text-sm font-semibold text-amber-200">Transfer PIN required</p>
+                <p className="text-xs text-slate-300 mt-1">
+                  Set your PIN in <span className="font-semibold">Profile → Security</span> before transferring.
+                </p>
+                <button
+                  onClick={() => navigate("/profile?tab=security")}
+                  className="mt-3 w-full px-4 py-2 rounded-2xl bg-amber-400 text-slate-900 hover:bg-amber-300 transition text-sm font-semibold"
+                >
+                  Go to Security
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ✅ Create PIN Modal */}
-      {showCreatePinModal && (
+      {/* NO PIN Modal */}
+      {showNoPinModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
           <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-6 space-y-4">
             <div className="flex items-center gap-2">
               <KeyRound className="text-amber-300" />
-              <h3 className="text-xl font-bold">Create Transfer PIN</h3>
+              <h3 className="text-xl font-bold">Set your Transfer PIN</h3>
             </div>
-
             <p className="text-sm text-slate-400">
-              Set a 4-digit PIN you’ll use to authorize transfers.
+              You must set a transfer PIN before you can send money.
             </p>
-
-            <input
-              type="password"
-              value={newPin}
-              onChange={(e) => setNewPin(e.target.value)}
-              className="w-full p-3 rounded-2xl bg-slate-950 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
-              placeholder="Enter 4-digit PIN"
-              maxLength={4}
-            />
-
-            <input
-              type="password"
-              value={confirmPin}
-              onChange={(e) => setConfirmPin(e.target.value)}
-              className="w-full p-3 rounded-2xl bg-slate-950 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
-              placeholder="Confirm PIN"
-              maxLength={4}
-            />
-
             <div className="flex gap-2 justify-end">
               <button
-                onClick={() => {
-                  setShowCreatePinModal(false);
-                  setNewPin("");
-                  setConfirmPin("");
-                }}
+                onClick={() => setShowNoPinModal(false)}
                 className="px-4 py-2 rounded-2xl border border-slate-700 hover:bg-slate-800 transition text-sm"
               >
                 Cancel
               </button>
-
               <button
-                onClick={createPinNow}
+                onClick={() => navigate("/profile?tab=security")}
                 className="px-4 py-2 rounded-2xl bg-amber-400 text-slate-900 hover:bg-amber-300 transition text-sm font-semibold"
               >
-                Save PIN
+                Go to Security
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ✅ Enter PIN Modal */}
+      {/* PIN Modal */}
       {showPinModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
           <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-6 space-y-4">
@@ -437,7 +380,7 @@ export default function Transfer() {
             </div>
 
             <p className="text-sm text-slate-400">
-              Enter your 4-digit PIN to authorize this transfer.
+              Enter your transfer PIN to authorize this transfer.
             </p>
 
             <input
@@ -445,8 +388,8 @@ export default function Transfer() {
               value={pinInput}
               onChange={(e) => setPinInput(e.target.value)}
               className="w-full p-3 rounded-2xl bg-slate-950 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="Enter 4-digit PIN"
-              maxLength={4}
+              placeholder="Enter PIN"
+              maxLength={6}
             />
 
             <div className="flex gap-2 justify-end">
@@ -465,13 +408,13 @@ export default function Transfer() {
                 className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 transition text-sm font-semibold inline-flex items-center gap-2"
               >
                 <BadgeCheck size={18} />
-                Confirm
+                Verify & Submit
               </button>
             </div>
 
             <div className="text-xs text-slate-500 pt-1 flex items-center gap-2">
               <ShieldCheck className="text-emerald-400" size={16} />
-              Encrypted verification
+              Secure verification • PIN required
             </div>
           </div>
         </div>
