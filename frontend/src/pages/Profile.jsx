@@ -13,6 +13,7 @@ import {
 import { getStoredUser, logout as doLogout } from "../services/authService";
 import { toast, Toaster } from "react-hot-toast";
 import { setStoredUser } from "../services/authService";
+import { updateStoredUser } from "../services/authService";
 import api from "../utils/api";
 
 export default function Profile() {
@@ -24,6 +25,10 @@ export default function Profile() {
     const params = new URLSearchParams(location.search);
     return params.get("tab") || "profile";
   });
+
+  const res = await api.post("/users/set-pin", { pin });
+updateStoredUser(res.data.user); // ✅ this makes transfer page see it immediately
+toast.success("PIN set successfully");
 
   const [pinForm, setPinForm] = useState({
     pin: "",
