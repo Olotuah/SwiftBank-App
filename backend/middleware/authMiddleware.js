@@ -1,7 +1,8 @@
+// middleware/authMiddleware.js
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
-const protect = async (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   const header = req.headers.authorization;
 
   if (!header || !header.startsWith("Bearer ")) {
@@ -16,11 +17,13 @@ const protect = async (req, res, next) => {
     const user = await User.findById(decoded.id).select("-password");
     if (!user) return res.status(401).json({ message: "Not authorized" });
 
-    // ✅ include admin info
+    // ✅ include admin and role so adminMiddleware can use it
     req.user = {
       id: user._id.toString(),
       admin: !!user.admin,
-      role: user.role,
+      role: user.role || "user",
+      email: user.email,
+      fullName: user.fullName,
     };
 
     next();
@@ -29,4 +32,4 @@ const protect = async (req, res, next) => {
   }
 };
 
-export default protect;
+export default authMiddleware;
