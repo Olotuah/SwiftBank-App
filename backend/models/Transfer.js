@@ -16,7 +16,8 @@ const TransferSchema = new mongoose.Schema(
     status: { type: String, enum: ["PENDING", "APPROVED", "REJECTED"], default: "PENDING" },
     decisionReason: { type: String, default: "" },
 
-    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    // ✅ use decidedBy consistently (you are using this in controller)
+    decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     decidedAt: { type: Date },
   },
   { timestamps: true }
