@@ -20,76 +20,133 @@ const findRecipient = async (toAccountOrEmail) => {
   return byEmail;
 };
 
-// ✅ user creates transfer request (PENDING) BUT balance is deducted immediately
+// ✅ CREATE TRANSFER (deduct immediately, but keep status PENDING)
 export const createTransfer = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const {
       fromAccountName = "Main Account",
       toAccount,
       amount,
       note = "",
-      pin, // ✅ NEW
     } = req.body;
 
     const amt = Number(amount);
+
     if (!toAccount || !amt || amt <= 0) {
-      return res.status(400).json({ message: "toAccount and valid amount are required" });
+      await session.abortTransaction();
+      return res
+        .status(400)
+        .json({ message: "toAccount and valid amount are required" });
     }
 
     const senderId = req.user.id;
 
-    // ✅ Verify sender PIN first
-    const sender = await User.findById(senderId);
-    if (!sender) return res.status(401).json({ message: "Not authorized" });
-
-    if (!sender.transferPinHash) {
-      return res.status(400).json({ message: "Please set your transfer PIN first" });
-    }
-
-    const ok = await sender.matchTransferPin(pin);
-    if (!ok) {
-      return res.status(400).json({ message: "Invalid transfer PIN" });
-    }
-
     const recipient = await findRecipient(toAccount);
-    if (!recipient) return res.status(404).json({ message: "Recipient not found" });
+    if (!recipient) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "Recipient not found" });
+    }
     if (recipient._id.toString() === senderId) {
+      await session.abortTransaction();
       return res.status(400).json({ message: "You cannot transfer to yourself" });
     }
 
-    const fromAcc = await Account.findOne({ user: senderId, name: fromAccountName });
-    if (!fromAcc) return res.status(404).json({ message: "Sender account not found" });
+    const fromAcc = await Account.findOne({
+      user: senderId,
+      name: fromAccountName,
+    }).session(session);
 
-    const toAcc = await Account.findOne({ user: recipient._id, name: "Main Account" });
-    if (!toAcc) return res.status(404).json({ message: "Recipient account not found" });
+    if (!fromAcc) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "Sender account not found" });
+    }
 
-    if (fromAcc.balance < amt) {
+    // receiver main account
+    const toAcc = await Account.findOne({
+      user: recipient._id,
+      name: "Main Account",
+    }).session(session);
+
+    if (!toAcc) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "Recipient account not found" });
+    }
+
+    // ✅ deduct now (real bank feel)
+    if (Number(fromAcc.balance) < amt) {
+      await session.abortTransaction();
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
-    const transfer = await Transfer.create({
-      reference: makeRef(),
-      fromUser: senderId,
-      toUser: recipient._id,
-      fromAccount: fromAcc._id,
-      toAccount: toAcc._id,
-      amount: amt,
-      note,
-      status: "PENDING",
-    });
+    fromAcc.balance = Number(fromAcc.balance) - amt;
+    await fromAcc.save({ session });
+
+    const transfer = await Transfer.create(
+      [
+        {
+          reference: makeRef(),
+          fromUser: senderId,
+          toUser: recipient._id,
+          fromAccount: fromAcc._id,
+          toAccount: toAcc._id,
+          amount: amt,
+          note,
+          status: "PENDING",
+        },
+      ],
+      { session }
+    );
+
+    // ✅ optional: log a pending transaction immediately
+    await Transaction.create(
+      [
+        {
+          user: senderId,
+          type: "Debit",
+          amount: amt,
+          description: note || `Transfer to ${recipient.accountNumber || recipient.email}`,
+          status: "Pending",
+          transferRef: transfer[0].reference,
+          timestamp: new Date(),
+        },
+      ],
+      { session }
+    );
+
+    await session.commitTransaction();
 
     return res.status(201).json({
-      message: "Transfer request submitted for approval",
-      transfer,
+      message: "Transfer submitted and amount deducted (Pending approval)",
+      transfer: transfer[0],
     });
   } catch (err) {
     console.error("createTransfer error:", err);
+    await session.abortTransaction();
     return res.status(500).json({ message: "Failed to create transfer" });
+  } finally {
+    session.endSession();
   }
 };
 
+// ✅ ADMIN: list pending
+export const getPendingTransfers = async (req, res) => {
+  try {
+    const transfers = await Transfer.find({ status: "PENDING" })
+      .sort({ createdAt: -1 })
+      .populate("fromUser", "fullName accountNumber email")
+      .populate("toUser", "fullName accountNumber email");
 
-// ✅ user views their transfers
+    res.json(transfers);
+  } catch (err) {
+    console.error("getPendingTransfers error:", err);
+    res.status(500).json({ message: "Failed to load pending transfers" });
+  }
+};
+
+// ✅ MY TRANSFERS
 export const getMyTransfers = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -108,22 +165,7 @@ export const getMyTransfers = async (req, res) => {
   }
 };
 
-// ✅ admin: list pending transfers
-export const getPendingTransfers = async (req, res) => {
-  try {
-    const transfers = await Transfer.find({ status: "PENDING" })
-      .sort({ createdAt: -1 })
-      .populate("fromUser", "fullName accountNumber email")
-      .populate("toUser", "fullName accountNumber email");
-
-    res.json(transfers);
-  } catch (err) {
-    console.error("getPendingTransfers error:", err);
-    res.status(500).json({ message: "Failed to load pending transfers" });
-  }
-};
-
-// ✅ admin: approve transfer -> ONLY CREDIT receiver (sender already debited)
+// ✅ ADMIN APPROVE: only credit receiver (sender already deducted)
 export const approveTransfer = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -136,7 +178,6 @@ export const approveTransfer = async (req, res) => {
       await session.abortTransaction();
       return res.status(404).json({ message: "Transfer not found" });
     }
-
     if (transfer.status !== "PENDING") {
       await session.abortTransaction();
       return res.status(400).json({ message: "Transfer already decided" });
@@ -152,31 +193,30 @@ export const approveTransfer = async (req, res) => {
     toAcc.balance = Number(toAcc.balance) + Number(transfer.amount);
     await toAcc.save({ session });
 
-    // ✅ ledger: receiver credit, and mark sender debit as completed
+    // ✅ mark sender pending tx as completed + create receiver credit tx
+    await Transaction.updateMany(
+      { transferRef: transfer.reference, user: transfer.fromUser, status: "Pending" },
+      { $set: { status: "Completed" } },
+      { session }
+    );
+
     await Transaction.create(
       [
         {
           user: transfer.toUser,
           type: "Credit",
           amount: transfer.amount,
-          description: transfer.note || "Transfer",
+          description: transfer.note || "Transfer received",
           status: "Completed",
-          timestamp: new Date(),
           transferRef: transfer.reference,
+          timestamp: new Date(),
         },
       ],
       { session }
     );
 
-    // If you created a "Pending" sender debit earlier, you can update it to Completed
-    await Transaction.updateMany(
-      { user: transfer.fromUser, transferRef: transfer.reference, status: "Pending" },
-      { $set: { status: "Completed" } },
-      { session }
-    );
-
     transfer.status = "APPROVED";
-    transfer.decidedBy = req.user.id;
+    transfer.approvedBy = req.user.id;
     transfer.decidedAt = new Date();
     await transfer.save({ session });
 
@@ -191,7 +231,7 @@ export const approveTransfer = async (req, res) => {
   }
 };
 
-// ✅ admin: reject transfer -> REFUND sender (since we deducted immediately)
+// ✅ ADMIN REJECT: refund sender
 export const rejectTransfer = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -210,31 +250,31 @@ export const rejectTransfer = async (req, res) => {
       return res.status(400).json({ message: "Transfer already decided" });
     }
 
-    // ✅ refund sender
     const fromAcc = await Account.findById(transfer.fromAccount).session(session);
     if (!fromAcc) {
       await session.abortTransaction();
       return res.status(404).json({ message: "Sender account not found" });
     }
 
+    // ✅ refund sender
     fromAcc.balance = Number(fromAcc.balance) + Number(transfer.amount);
     await fromAcc.save({ session });
 
-    // ✅ mark sender pending debit as Reversed/Rejected
+    // ✅ mark pending tx as rejected
     await Transaction.updateMany(
-      { user: transfer.fromUser, transferRef: transfer.reference, status: "Pending" },
-      { $set: { status: "Reversed" } },
+      { transferRef: transfer.reference, user: transfer.fromUser },
+      { $set: { status: "Rejected" } },
       { session }
     );
 
     transfer.status = "REJECTED";
     transfer.decisionReason = reason;
-    transfer.decidedBy = req.user.id;
+    transfer.approvedBy = req.user.id;
     transfer.decidedAt = new Date();
     await transfer.save({ session });
 
     await session.commitTransaction();
-    return res.json({ message: "Transfer rejected", transfer });
+    return res.json({ message: "Transfer rejected and refunded", transfer });
   } catch (err) {
     console.error("rejectTransfer error:", err);
     await session.abortTransaction();
