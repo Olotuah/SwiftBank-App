@@ -10,8 +10,10 @@ import {
   Lock,
   Send,
   ShieldCheck,
+  KeyRound,
 } from "lucide-react";
 import api from "../utils/api";
+import { getStoredUser } from "../services/authService";
 
 export default function Transfer() {
   const navigate = useNavigate();
@@ -26,14 +28,21 @@ export default function Transfer() {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // OTP simulation (UI only)
-  const [showOTPModal, setShowOTPModal] = useState(false);
-  const [otpInput, setOtpInput] = useState("");
-  const expectedOtp = "123456";
+  // ✅ PIN states
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+
+  // ✅ If user has no PIN yet, show "create PIN" modal instead
+  const [showCreatePinModal, setShowCreatePinModal] = useState(false);
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
 
   const [successState, setSuccessState] = useState(null); // null | "pending"
 
-  // ✅ load accounts so user sees realistic balances
+  const storedUser = useMemo(() => getStoredUser(), []);
+  const [pinSet, setPinSet] = useState(!!storedUser?.pinSet);
+
+  // ✅ load accounts
   useEffect(() => {
     const load = async () => {
       try {
@@ -56,7 +65,7 @@ export default function Transfer() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const validateBeforeOTP = () => {
+  const validateBeforePin = () => {
     const to = form.toAccount.trim();
     const amt = Number(form.amount);
 
@@ -64,9 +73,8 @@ export default function Transfer() {
     if (!amt || amt <= 0) return "Enter a valid amount.";
     if (amt > availableBalance) return "Insufficient balance in selected account.";
 
-    // allow email or account number formats
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to);
-    const isAcct = /^[A-Za-z0-9\-]{6,30}$/.test(to); // e.g SB123456 or plain number
+    const isAcct = /^[A-Za-z0-9\-]{6,30}$/.test(to);
     if (!isEmail && !isAcct) return "Enter a valid email or account number.";
 
     return null;
@@ -75,34 +83,77 @@ export default function Transfer() {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    const err = validateBeforeOTP();
+    const err = validateBeforePin();
     if (err) return toast.error(err);
 
-    setShowOTPModal(true);
-    toast("A one-time code has been sent (demo: 123456)", { icon: "🔐" });
+    // ✅ If no PIN yet → force create PIN modal
+    if (!pinSet) {
+      setShowCreatePinModal(true);
+      toast("Create a transfer PIN to continue", { icon: "🔑" });
+      return;
+    }
+
+    // ✅ If PIN exists → ask for PIN
+    setShowPinModal(true);
   };
 
-  const verifyAndSubmit = async () => {
-    if (otpInput.trim() !== expectedOtp) {
-      toast.error("Incorrect OTP. Please try again.");
+  const createPinNow = async () => {
+    const a = String(newPin).trim();
+    const b = String(confirmPin).trim();
+
+    if (!/^\d{4}$/.test(a)) return toast.error("PIN must be exactly 4 digits");
+    if (a !== b) return toast.error("PINs do not match");
+
+    setLoading(true);
+    try {
+      const res = await api.put("/users/pin", { pin: a });
+
+      // update local UI state
+      setPinSet(true);
+
+      // ✅ also update localStorage user.pinSet so dashboard/admin logic stays correct
+      const raw = localStorage.getItem("user");
+      const oldUser = raw ? JSON.parse(raw) : null;
+      if (oldUser) {
+        localStorage.setItem("user", JSON.stringify({ ...oldUser, pinSet: true }));
+      }
+
+      toast.success("Transfer PIN created!");
+      setShowCreatePinModal(false);
+      setNewPin("");
+      setConfirmPin("");
+
+      // open PIN entry to continue transfer immediately
+      setShowPinModal(true);
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.response?.data?.message || "Failed to set PIN");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyPinAndSubmit = async () => {
+    const pin = String(pinInput).trim();
+    if (!/^\d{4}$/.test(pin)) {
+      toast.error("Enter your 4-digit transfer PIN");
       return;
     }
 
     setLoading(true);
     try {
-      // ✅ new logic: create transfer request (PENDING)
       await api.post("/transfers", {
         fromAccountName: form.fromAccount,
-        toAccount: form.toAccount.trim(), // email or accountNumber
+        toAccount: form.toAccount.trim(),
         amount: Number(form.amount),
         note: form.note?.trim(),
+        pin, // ✅ send PIN to backend
       });
 
-      setShowOTPModal(false);
-      setOtpInput("");
+      setShowPinModal(false);
+      setPinInput("");
       setForm({ fromAccount: "Main Account", toAccount: "", amount: "", note: "" });
 
-      // ✅ show “pending approval” state like a real bank
       setSuccessState("pending");
       toast.success("Transfer submitted for approval!");
 
@@ -119,18 +170,18 @@ export default function Transfer() {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white p-6">
       <Toaster position="top-right" />
 
-      {/* Fullscreen Loading Overlay */}
+      {/* Loading Overlay */}
       {loading && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="rounded-2xl bg-slate-900 border border-slate-800 p-6 w-[92%] max-w-sm text-center">
             <Loader2 className="animate-spin mx-auto mb-3" />
-            <p className="text-lg font-semibold">Processing transfer…</p>
+            <p className="text-lg font-semibold">Processing…</p>
             <p className="text-sm text-slate-400 mt-1">Please don’t close this page</p>
           </div>
         </div>
       )}
 
-      {/* Success Pending Overlay */}
+      {/* Success Overlay */}
       {successState === "pending" && (
         <div className="fixed inset-0 bg-emerald-600/90 flex items-center justify-center z-50">
           <div className="text-center px-6">
@@ -144,7 +195,6 @@ export default function Transfer() {
       )}
 
       <div className="max-w-5xl mx-auto space-y-6">
-
         {/* Top Bar */}
         <div className="flex items-center justify-between gap-3">
           <button
@@ -155,10 +205,7 @@ export default function Transfer() {
             Back
           </button>
 
-          <Link
-            to="/dashboard"
-            className="text-sm text-slate-300 hover:text-white transition"
-          >
+          <Link to="/dashboard" className="text-sm text-slate-300 hover:text-white transition">
             SwiftBank Dashboard
           </Link>
         </div>
@@ -169,7 +216,9 @@ export default function Transfer() {
             <div>
               <h1 className="text-3xl font-bold">Transfer Funds</h1>
               <p className="text-slate-400 mt-1">
-                Send money to another SwiftBank user by <span className="text-slate-200">account number</span> or <span className="text-slate-200">email</span>.
+                Send money to another SwiftBank user by{" "}
+                <span className="text-slate-200">account number</span> or{" "}
+                <span className="text-slate-200">email</span>.
               </p>
             </div>
 
@@ -180,7 +229,7 @@ export default function Transfer() {
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
                 <Lock size={14} />
-                OTP verification enabled
+                Transfer PIN required
               </div>
             </div>
           </div>
@@ -194,9 +243,7 @@ export default function Transfer() {
               {/* From */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-slate-300 mb-2">
-                    From account
-                  </label>
+                  <label className="block text-sm text-slate-300 mb-2">From account</label>
                   <select
                     name="fromAccount"
                     value={form.fromAccount}
@@ -210,16 +257,10 @@ export default function Transfer() {
                 </div>
 
                 <div>
-                  <label className="block text-sm text-slate-300 mb-2">
-                    Available balance
-                  </label>
+                  <label className="block text-sm text-slate-300 mb-2">Available balance</label>
                   <div className="w-full p-3 rounded-2xl bg-slate-950 border border-slate-700">
-                    <span className="text-lg font-semibold">
-                      ${availableBalance.toLocaleString()}
-                    </span>
-                    <span className="text-xs text-slate-400 ml-2">
-                      ({form.fromAccount})
-                    </span>
+                    <span className="text-lg font-semibold">${availableBalance.toLocaleString()}</span>
+                    <span className="text-xs text-slate-400 ml-2">({form.fromAccount})</span>
                   </div>
                 </div>
               </div>
@@ -246,12 +287,10 @@ export default function Transfer() {
                 </p>
               </div>
 
-              {/* Amount */}
+              {/* Amount + Note */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-slate-300 mb-2">
-                    Amount (USD)
-                  </label>
+                  <label className="block text-sm text-slate-300 mb-2">Amount (USD)</label>
                   <div className="flex items-center gap-2 w-full p-3 rounded-2xl bg-slate-950 border border-slate-700 focus-within:ring-2 focus-within:ring-indigo-500">
                     <CreditCard className="text-slate-400" size={18} />
                     <input
@@ -269,9 +308,7 @@ export default function Transfer() {
                 </div>
 
                 <div>
-                  <label className="block text-sm text-slate-300 mb-2">
-                    Note (optional)
-                  </label>
+                  <label className="block text-sm text-slate-300 mb-2">Note (optional)</label>
                   <input
                     type="text"
                     name="note"
@@ -283,7 +320,6 @@ export default function Transfer() {
                 </div>
               </div>
 
-              {/* Submit */}
               <button
                 type="submit"
                 className="w-full inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 transition text-white font-semibold p-3 rounded-2xl disabled:opacity-60"
@@ -293,13 +329,24 @@ export default function Transfer() {
                 Continue
               </button>
 
-              <p className="text-xs text-slate-500">
-                Tip: For demo OTP, use <span className="text-slate-300 font-semibold">123456</span>
-              </p>
+              {!pinSet && (
+                <div className="rounded-2xl bg-amber-500/10 border border-amber-400/30 p-4 text-sm">
+                  <p className="font-semibold text-amber-200">Transfer PIN not set</p>
+                  <p className="text-xs text-slate-300 mt-1">
+                    You must create a transfer PIN before sending money.
+                  </p>
+                  <Link
+                    to="/profile?tab=security"
+                    className="inline-flex mt-3 text-xs text-amber-200 underline"
+                  >
+                    Go to Security Settings
+                  </Link>
+                </div>
+              )}
             </form>
           </div>
 
-          {/* Side Panel - Real bank feel */}
+          {/* Side Panel */}
           <div className="rounded-3xl bg-slate-900 border border-slate-800 shadow-xl p-6 space-y-4">
             <h3 className="text-lg font-bold">Transfer Summary</h3>
 
@@ -322,44 +369,47 @@ export default function Transfer() {
                 Transfers are submitted as <span className="font-semibold">PENDING</span> and processed after approval.
               </p>
             </div>
-
-            <button
-              onClick={() => toast("Transfer history page coming soon")}
-              className="w-full px-4 py-2 rounded-2xl border border-slate-700 hover:bg-slate-800 transition text-sm"
-            >
-              View Transfer History
-            </button>
           </div>
         </div>
       </div>
 
-      {/* OTP Modal */}
-      {showOTPModal && (
+      {/* ✅ Create PIN Modal */}
+      {showCreatePinModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
           <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-6 space-y-4">
             <div className="flex items-center gap-2">
-              <Lock className="text-indigo-300" />
-              <h3 className="text-xl font-bold">Confirm OTP</h3>
+              <KeyRound className="text-amber-300" />
+              <h3 className="text-xl font-bold">Create Transfer PIN</h3>
             </div>
 
             <p className="text-sm text-slate-400">
-              Enter the 6-digit code to authorize this transfer.
+              Set a 4-digit PIN you’ll use to authorize transfers.
             </p>
 
             <input
-              type="text"
-              value={otpInput}
-              onChange={(e) => setOtpInput(e.target.value)}
-              className="w-full p-3 rounded-2xl bg-slate-950 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="Enter 6-digit code"
-              maxLength={6}
+              type="password"
+              value={newPin}
+              onChange={(e) => setNewPin(e.target.value)}
+              className="w-full p-3 rounded-2xl bg-slate-950 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              placeholder="Enter 4-digit PIN"
+              maxLength={4}
+            />
+
+            <input
+              type="password"
+              value={confirmPin}
+              onChange={(e) => setConfirmPin(e.target.value)}
+              className="w-full p-3 rounded-2xl bg-slate-950 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              placeholder="Confirm PIN"
+              maxLength={4}
             />
 
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => {
-                  setShowOTPModal(false);
-                  setOtpInput("");
+                  setShowCreatePinModal(false);
+                  setNewPin("");
+                  setConfirmPin("");
                 }}
                 className="px-4 py-2 rounded-2xl border border-slate-700 hover:bg-slate-800 transition text-sm"
               >
@@ -367,17 +417,61 @@ export default function Transfer() {
               </button>
 
               <button
-                onClick={verifyAndSubmit}
+                onClick={createPinNow}
+                className="px-4 py-2 rounded-2xl bg-amber-400 text-slate-900 hover:bg-amber-300 transition text-sm font-semibold"
+              >
+                Save PIN
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Enter PIN Modal */}
+      {showPinModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
+          <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <Lock className="text-indigo-300" />
+              <h3 className="text-xl font-bold">Enter Transfer PIN</h3>
+            </div>
+
+            <p className="text-sm text-slate-400">
+              Enter your 4-digit PIN to authorize this transfer.
+            </p>
+
+            <input
+              type="password"
+              value={pinInput}
+              onChange={(e) => setPinInput(e.target.value)}
+              className="w-full p-3 rounded-2xl bg-slate-950 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Enter 4-digit PIN"
+              maxLength={4}
+            />
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowPinModal(false);
+                  setPinInput("");
+                }}
+                className="px-4 py-2 rounded-2xl border border-slate-700 hover:bg-slate-800 transition text-sm"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={verifyPinAndSubmit}
                 className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 transition text-sm font-semibold inline-flex items-center gap-2"
               >
                 <BadgeCheck size={18} />
-                Verify & Submit
+                Confirm
               </button>
             </div>
 
             <div className="text-xs text-slate-500 pt-1 flex items-center gap-2">
               <ShieldCheck className="text-emerald-400" size={16} />
-              Encrypted verification • Demo OTP: 123456
+              Encrypted verification
             </div>
           </div>
         </div>
