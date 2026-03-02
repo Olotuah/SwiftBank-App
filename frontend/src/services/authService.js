@@ -27,6 +27,19 @@ export const logout = () => {
   localStorage.removeItem("user");
 };
 
+// src/services/authService.js
+export const updateStoredUser = (patch) => {
+  try {
+    const raw = localStorage.getItem("user");
+    const current = raw ? JSON.parse(raw) : {};
+    const merged = { ...current, ...patch };
+    localStorage.setItem("user", JSON.stringify(merged));
+    return merged;
+  } catch {
+    return null;
+  }
+};
+
 export const getToken = () => localStorage.getItem("token");
 
 export const getStoredUser = () => {
