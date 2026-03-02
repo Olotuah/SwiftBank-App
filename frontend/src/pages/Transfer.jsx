@@ -68,6 +68,18 @@ export default function Transfer() {
     loadMe();
   }, []);
 
+  useEffect(() => {
+  const onFocus = async () => {
+    try {
+      const res = await api.get("/users/me");
+      setMe(res.data);
+    } catch {}
+  };
+
+  window.addEventListener("focus", onFocus);
+  return () => window.removeEventListener("focus", onFocus);
+}, []);
+
   const fromAccountObj = useMemo(() => {
     return accounts.find((a) => a.name === form.fromAccount);
   }, [accounts, form.fromAccount]);
