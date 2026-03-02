@@ -1,4 +1,3 @@
-// middleware/authMiddleware.js
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
@@ -17,14 +16,11 @@ const protect = async (req, res, next) => {
     const user = await User.findById(decoded.id).select("-password");
     if (!user) return res.status(401).json({ message: "Not authorized" });
 
-    // ✅ keep req.user.id for your existing routes
-    // ✅ add role + accountNumber for transfer/admin checks
+    // ✅ include admin info
     req.user = {
       id: user._id.toString(),
+      admin: !!user.admin,
       role: user.role,
-      accountNumber: user.accountNumber,
-      email: user.email,
-      fullName: user.fullName,
     };
 
     next();
