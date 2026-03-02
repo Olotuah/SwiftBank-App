@@ -5,6 +5,8 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
 import AdminTransfers from "./pages/AdminTransfers";
+import AccountDetails from "./pages/AccountDetails";
+import FundAccount from "./pages/FundAccount";
 import Transfer from "./pages/Transfer";
 import Bills from "./pages/Bills";
 import Cards from "./pages/Cards";
@@ -31,6 +33,8 @@ function App() {
         <Route path="/transfer" element={<Transfer />} />
         <Route path="/bills" element={<Bills />} />
         <Route path="/cards" element={<Cards />} />
+        <Route path="/account-details" element={<AccountDetails />} />
+        <Route path="/fund-account" element={<FundAccount />} />
         <Route path="/topup" element={<TopUp />} />
         <Route path="/fx" element={<FxSales />} />
         <Route path="/buy-data" element={<BuyData />} />
