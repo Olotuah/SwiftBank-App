@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { getStoredUser, logout as doLogout } from "../services/authService";
 import { toast, Toaster } from "react-hot-toast";
+import { setStoredUser } from "../services/authService";
 import api from "../utils/api";
 
 export default function Profile() {
@@ -47,6 +48,19 @@ export default function Profile() {
   const handlePinChange = (e) => {
     setPinForm({ ...pinForm, [e.target.name]: e.target.value });
   };
+
+  const handleSetPin = async () => {
+  try {
+    const res = await api.put("/users/pin", { pin }); // or /auth/pin depending on your route
+    toast.success("PIN set successfully");
+
+    // ✅ update local user immediately
+    setStoredUser(res.data.user);
+
+  } catch (err) {
+    toast.error(err?.response?.data?.message || "Failed to set PIN");
+  }
+};
 
   const saveTransferPin = async () => {
     const pin = pinForm.pin.trim();
