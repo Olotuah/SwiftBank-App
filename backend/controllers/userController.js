@@ -2,6 +2,32 @@
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 
+const safeUser = (user) => ({
+  id: user._id,
+  fullName: user.fullName,
+  email: user.email,
+  phone: user.phone,
+  accountNumber: user.accountNumber,
+  accountType: user.accountType,
+  createdAt: user.createdAt,
+  admin: !!user.admin,
+  role: user.role || "user",
+  pinSet: !!user.transferPinHash,
+});
+
+// ✅ GET /api/auth/me  (or /api/users/me depending on how you route it)
+export const getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    return res.json({ user: safeUser(user) });
+  } catch (err) {
+    console.error("getMe error:", err);
+    return res.status(500).json({ message: "Failed to fetch user" });
+  }
+};
+
+// ✅ PUT /api/users/pin
 export const setTransferPin = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -9,7 +35,6 @@ export const setTransferPin = async (req, res) => {
 
     const clean = String(pin || "").trim();
 
-    // ✅ 4-digit PIN (like real banks). Change to 6 if you want.
     if (!/^\d{4}$/.test(clean)) {
       return res.status(400).json({ message: "PIN must be exactly 4 digits" });
     }
@@ -21,12 +46,12 @@ export const setTransferPin = async (req, res) => {
       userId,
       { transferPinHash: hash },
       { new: true }
-    ).select("-password -transferPinHash");
+    );
 
     return res.json({
       message: "Transfer PIN set successfully",
       pinSet: true,
-      user,
+      user: safeUser(user),
     });
   } catch (err) {
     console.error("setTransferPin error:", err);
