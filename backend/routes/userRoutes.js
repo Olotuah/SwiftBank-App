@@ -1,10 +1,11 @@
-// routes/userRoutes.js
 import express from "express";
-import authMiddleware from "../middleware/authMiddleware.js";
-import { setTransferPin } from "../controllers/userController.js";
+import protect from "../middleware/authMiddleware.js";
+import { getMe, setTransferPin, verifyTransferPin } from "../controllers/userController.js";
 
 const router = express.Router();
 
-router.put("/pin", authMiddleware, setTransferPin);
+router.get("/me", protect, getMe);
+router.post("/set-pin", protect, setTransferPin);
+router.post("/verify-pin", protect, verifyTransferPin);
 
 export default router;
