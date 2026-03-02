@@ -1,3 +1,4 @@
+// src/pages/Transfer.jsx
 import { useEffect, useMemo, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
@@ -27,9 +28,21 @@ export default function Transfer() {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // ✅ user + pin state
+  // ✅ me state (from backend)
   const [me, setMe] = useState(null);
-  const hasTransferPin = !!me?.hasTransferPin;
+
+  // ✅ cached user state (from localStorage) — helps when /users/me isn’t updated yet
+  const [storedUser, setStoredUser] = useState(() => {
+    try {
+      const raw = localStorage.getItem("user");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // ✅ pin flags (backend OR localStorage)
+  const hasTransferPin = !!(me?.hasTransferPin || storedUser?.hasTransferPin);
 
   // ✅ PIN modal
   const [showPinModal, setShowPinModal] = useState(false);
@@ -54,31 +67,61 @@ export default function Transfer() {
     load();
   }, []);
 
-  // ✅ load current user (to know if PIN exists)
-  useEffect(() => {
-    const loadMe = async () => {
-      try {
-        const res = await api.get("/users/me"); // 👈 adjust if your route differs
-        setMe(res.data);
-      } catch (e) {
-        console.error(e);
-        // don’t hard fail UI, but show message
-      }
-    };
-    loadMe();
-  }, []);
-
-  useEffect(() => {
-  const onFocus = async () => {
+  // ✅ helper: refresh user from backend + localStorage
+  const refreshUser = async () => {
+    // Always refresh localStorage snapshot
     try {
-      const res = await api.get("/users/me");
-      setMe(res.data);
+      const raw = localStorage.getItem("user");
+      setStoredUser(raw ? JSON.parse(raw) : null);
     } catch {}
+
+    // Try backend /users/me
+    try {
+      const res = await api.get("/users/me"); // make sure this route exists
+      // support both {user: {...}} or {...}
+      const data = res.data?.user ? res.data.user : res.data;
+      setMe(data || null);
+
+      // OPTIONAL: keep localStorage synced if backend returns pin state
+      // (helps Transfer detect immediately even if other pages don’t refresh)
+      if (data) {
+        const currentRaw = localStorage.getItem("user");
+        const current = currentRaw ? JSON.parse(currentRaw) : {};
+        localStorage.setItem("user", JSON.stringify({ ...current, ...data }));
+        setStoredUser({ ...current, ...data });
+      }
+    } catch (e) {
+      // don’t hard-fail UI
+      // console.log("Could not load /users/me", e?.response?.status);
+    }
   };
 
-  window.addEventListener("focus", onFocus);
-  return () => window.removeEventListener("focus", onFocus);
-}, []);
+  // ✅ load current user (PIN info) on mount
+  useEffect(() => {
+    refreshUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ✅ refresh when user returns to tab (after setting pin in Profile)
+  useEffect(() => {
+    const onFocus = () => refreshUser();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ✅ refresh when localStorage changes (another tab / same tab update)
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === "user") {
+        try {
+          setStoredUser(e.newValue ? JSON.parse(e.newValue) : null);
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const fromAccountObj = useMemo(() => {
     return accounts.find((a) => a.name === form.fromAccount);
@@ -87,7 +130,7 @@ export default function Transfer() {
   const availableBalance = Number(fromAccountObj?.balance || 0);
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const validateBeforeAuth = () => {
@@ -105,35 +148,36 @@ export default function Transfer() {
     return null;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const err = validateBeforeAuth();
     if (err) return toast.error(err);
 
-    // ✅ if no PIN, prompt user to set it
+    // ✅ always re-check pin state right before continuing
+    await refreshUser();
+
     if (!hasTransferPin) {
       setShowNoPinModal(true);
       return;
     }
 
-    // ✅ if pin exists, ask for PIN
     setShowPinModal(true);
   };
 
   const verifyPinAndSubmit = async () => {
-    if (pinInput.trim().length !== 4 && pinInput.trim().length !== 6) {
+    const pin = pinInput.trim();
+    if (!(pin.length === 4 || pin.length === 6)) {
       toast.error("Enter your 4 or 6 digit transfer PIN.");
       return;
     }
 
     setLoading(true);
     try {
-      // ✅ Verify PIN server-side (recommended)
-      // You should have an endpoint like POST /users/verify-pin
-      await api.post("/users/verify-pin", { pin: pinInput.trim() }); // 👈 adjust if needed
+      // ✅ verify pin server-side
+      await api.post("/users/verify-pin", { pin }); // make sure this route exists
 
-      // ✅ Create transfer request
+      // ✅ create transfer
       await api.post("/transfers", {
         fromAccountName: form.fromAccount,
         toAccount: form.toAccount.trim(),
@@ -145,9 +189,14 @@ export default function Transfer() {
       setPinInput("");
       setForm({ fromAccount: "Main Account", toAccount: "", amount: "", note: "" });
 
+      // ✅ refresh accounts so balance reflects quickly (deduct-immediately logic)
+      try {
+        const res = await api.get("/accounts");
+        setAccounts(res.data || []);
+      } catch {}
+
       setSuccessState("pending");
       toast.success("Transfer submitted!");
-
       setTimeout(() => setSuccessState(null), 4500);
     } catch (error) {
       console.error(error);
