@@ -16,7 +16,7 @@ const UserSchema = new mongoose.Schema(
     accountType: { type: String, default: "Main Account" },
     balance: { type: Number, default: 0 },
 
-    // ✅ NEW: Transfer PIN (hashed)
+    // ✅ transfer pin
     transferPinHash: { type: String, default: "" },
   },
   { timestamps: true }
@@ -31,11 +31,6 @@ UserSchema.pre("save", async function (next) {
 
 UserSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
-};
-
-UserSchema.methods.matchTransferPin = async function (enteredPin) {
-  if (!this.transferPinHash) return false;
-  return await bcrypt.compare(String(enteredPin), this.transferPinHash);
 };
 
 export default mongoose.model("User", UserSchema);
