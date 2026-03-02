@@ -51,11 +51,11 @@ export default function Dashboard() {
   };
 
   const shortcuts = [
+    { icon: <ArrowDownLeft size={18} />, label: "Transfer", to: "/transfer" },
     { icon: <Smartphone size={18} />, label: "Top-Up", to: "/topup" },
     { icon: <RefreshCcw size={18} />, label: "FX Sales", to: "/fx" },
     { icon: <MapPin size={18} />, label: "Near Me", to: "/near-me" },
     { icon: <ArrowUpRight size={18} />, label: "Buy Data", to: "/buy-data" },
-    { icon: <ArrowDownLeft size={18} />, label: "Transfer", to: "/transfer" },
     { icon: <CreditCard size={18} />, label: "Cards", to: "/cards" },
   ];
 
