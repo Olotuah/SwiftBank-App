@@ -1,20 +1,37 @@
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, LogOut, Shield, SlidersHorizontal, User } from "lucide-react";
+import {
+  ArrowLeft,
+  LogOut,
+  Shield,
+  SlidersHorizontal,
+  User,
+  KeyRound,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 import { getStoredUser, logout as doLogout } from "../services/authService";
 import { toast, Toaster } from "react-hot-toast";
+import api from "../utils/api";
 
 export default function Profile() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const user = useMemo(() => getStoredUser(), []);
+  const storedUser = useMemo(() => getStoredUser(), []);
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(location.search);
     return params.get("tab") || "profile";
   });
 
-  const firstName = user?.fullName?.split?.(" ")?.[0] || "User";
+  const [pinForm, setPinForm] = useState({
+    pin: "",
+    confirmPin: "",
+  });
+  const [savingPin, setSavingPin] = useState(false);
+  const [showPin, setShowPin] = useState(false);
+
+  const firstName = storedUser?.fullName?.split?.(" ")?.[0] || "User";
 
   const handleLogout = () => {
     doLogout();
@@ -27,12 +44,50 @@ export default function Profile() {
     navigate(`/profile?tab=${tab}`);
   };
 
+  const handlePinChange = (e) => {
+    setPinForm({ ...pinForm, [e.target.name]: e.target.value });
+  };
+
+  const saveTransferPin = async () => {
+    const pin = pinForm.pin.trim();
+    const confirm = pinForm.confirmPin.trim();
+
+    if (!/^\d{4}$/.test(pin)) {
+      toast.error("PIN must be exactly 4 digits");
+      return;
+    }
+    if (pin !== confirm) {
+      toast.error("PINs do not match");
+      return;
+    }
+
+    setSavingPin(true);
+    try {
+      const res = await api.post("/auth/pin", { pin });
+
+      toast.success(res?.data?.message || "Transfer PIN set successfully");
+
+      // ✅ update local user object so Transfer page can detect PIN exists
+      const updated = {
+        ...(storedUser || {}),
+        hasTransferPin: true,
+      };
+      localStorage.setItem("user", JSON.stringify(updated));
+
+      setPinForm({ pin: "", confirmPin: "" });
+      setShowPin(false);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to set PIN");
+    } finally {
+      setSavingPin(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white p-6">
       <Toaster position="top-right" />
 
       <div className="max-w-5xl mx-auto space-y-6">
-
         {/* TOP BAR */}
         <div className="flex items-center justify-between gap-3">
           <button
@@ -56,14 +111,13 @@ export default function Profile() {
         <div className="rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-6 sm:p-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
             <div className="flex items-center gap-4">
-              {/* Avatar */}
               <div className="h-14 w-14 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center">
                 <User className="text-indigo-300" />
               </div>
 
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold">
-                  {user?.fullName || "Your Profile"}
+                  {storedUser?.fullName || "Your Profile"}
                 </h1>
                 <p className="text-slate-400 text-sm">
                   Welcome, {firstName}. Manage your account settings.
@@ -111,15 +165,14 @@ export default function Profile() {
         {/* CONTENT */}
         {activeTab === "profile" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left: User Info */}
             <div className="lg:col-span-2 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl p-6 space-y-6">
               <h2 className="text-xl font-bold">Account Information</h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <InfoItem label="Full Name" value={user?.fullName || "—"} />
-                <InfoItem label="Email" value={user?.email || "—"} />
-                <InfoItem label="Account Number" value={user?.accountNumber || "—"} />
-                <InfoItem label="Account Type" value={user?.accountType || "Main Account"} />
+                <InfoItem label="Full Name" value={storedUser?.fullName || "—"} />
+                <InfoItem label="Email" value={storedUser?.email || "—"} />
+                <InfoItem label="Account Number" value={storedUser?.accountNumber || "—"} />
+                <InfoItem label="Account Type" value={storedUser?.accountType || "Main Account"} />
               </div>
 
               <div className="rounded-2xl bg-slate-800/60 border border-slate-700 p-4">
@@ -150,7 +203,6 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* Right: Tier & Quick Actions */}
             <div className="rounded-3xl bg-gradient-to-br from-indigo-600/25 to-slate-900 border border-indigo-500/20 shadow-xl p-6 space-y-4">
               <h3 className="text-lg font-bold">Account Tier</h3>
               <p className="text-slate-200/90 text-sm">
@@ -215,6 +267,72 @@ export default function Profile() {
               <h2 className="text-xl font-bold">Security</h2>
             </div>
 
+            {/* ✅ Transfer PIN Card */}
+            <div className="rounded-2xl bg-slate-800/60 border border-slate-700 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold flex items-center gap-2">
+                    <KeyRound size={16} className="text-indigo-300" />
+                    Transfer PIN
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Set a 4-digit PIN you’ll use to confirm transfers.
+                  </p>
+                </div>
+
+                <div className="text-xs px-3 py-1 rounded-full border border-slate-600">
+                  {storedUser?.hasTransferPin ? "PIN Set" : "Not Set"}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                <div className="relative">
+                  <input
+                    type={showPin ? "text" : "password"}
+                    name="pin"
+                    maxLength={4}
+                    inputMode="numeric"
+                    value={pinForm.pin}
+                    onChange={handlePinChange}
+                    placeholder="Enter 4-digit PIN"
+                    className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPin((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-white"
+                    title={showPin ? "Hide PIN" : "Show PIN"}
+                  >
+                    {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+
+                <input
+                  type={showPin ? "text" : "password"}
+                  name="confirmPin"
+                  maxLength={4}
+                  inputMode="numeric"
+                  value={pinForm.confirmPin}
+                  onChange={handlePinChange}
+                  placeholder="Confirm PIN"
+                  className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700"
+                />
+              </div>
+
+              <button
+                onClick={saveTransferPin}
+                disabled={savingPin}
+                className="mt-4 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 transition text-sm font-semibold disabled:opacity-60"
+              >
+                {savingPin ? "Saving..." : storedUser?.hasTransferPin ? "Update PIN" : "Set PIN"}
+              </button>
+
+              <p className="text-xs text-slate-400 mt-2">
+                Tip: Use a PIN you can remember, and don’t share it.
+              </p>
+            </div>
+
+            {/* Existing security cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <SecurityCard
                 title="Login Alerts"
