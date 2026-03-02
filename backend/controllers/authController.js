@@ -24,6 +24,7 @@ const safeUser = (user) => ({
   accountType: user.accountType,
   createdAt: user.createdAt,
   admin: !!user.admin,
+  pinSet: !!user.transferPinHash, // ✅ NEW
 });
 
 export const registerUser = async (req, res) => {
