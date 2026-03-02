@@ -12,10 +12,6 @@ export const register = async (payload) => {
   return res.data;
 };
 
-export const setStoredUser = (user) => {
-  localStorage.setItem("user", JSON.stringify(user));
-};
-
 export const login = async (payload) => {
   const res = await api.post("/auth/login", payload);
   saveAuth(res.data);
@@ -27,7 +23,22 @@ export const logout = () => {
   localStorage.removeItem("user");
 };
 
-// src/services/authService.js
+export const getToken = () => localStorage.getItem("token");
+
+export const getStoredUser = () => {
+  try {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const setStoredUser = (user) => {
+  localStorage.setItem("user", JSON.stringify(user));
+  return user;
+};
+
 export const updateStoredUser = (patch) => {
   try {
     const raw = localStorage.getItem("user");
@@ -35,17 +46,6 @@ export const updateStoredUser = (patch) => {
     const merged = { ...current, ...patch };
     localStorage.setItem("user", JSON.stringify(merged));
     return merged;
-  } catch {
-    return null;
-  }
-};
-
-export const getToken = () => localStorage.getItem("token");
-
-export const getStoredUser = () => {
-  try {
-    const raw = localStorage.getItem("user");
-    return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
