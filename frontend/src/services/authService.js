@@ -12,6 +12,10 @@ export const register = async (payload) => {
   return res.data;
 };
 
+export const setStoredUser = (user) => {
+  localStorage.setItem("user", JSON.stringify(user));
+};
+
 export const login = async (payload) => {
   const res = await api.post("/auth/login", payload);
   saveAuth(res.data);
