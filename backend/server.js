@@ -8,6 +8,7 @@ import accountRoutes from './routes/account.js';
 import userRoutes from "./routes/userRoutes.js";
 import authRoutes from './routes/auth.js';
 import transferRoutes from "./routes/transferRoutes.js";
+import supportRoutes from "./routes/supportRoutes.js";
 import tempAdminRoute from "./routes/tempAdminRoute.js";
 
 
