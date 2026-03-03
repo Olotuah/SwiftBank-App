@@ -27,6 +27,7 @@ export default function Transfer() {
 
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // ✅ me state (from backend)
   const [me, setMe] = useState(null);
@@ -177,45 +178,47 @@ export default function Transfer() {
   };
 
   const verifyPinAndSubmit = async () => {
-    const pin = pinInput.trim();
-    if (!/^\d{4}$/.test(pin) && !/^\d{6}$/.test(pin)) {
-      toast.error("Enter your 4 or 6 digit transfer PIN.");
-      return;
-    }
+  if (submitting || loading) return; // ✅ hard block double clicks
 
-    setLoading(true);
+  const pin = pinInput.trim();
+  if (!/^\d{4}$/.test(pin) && !/^\d{6}$/.test(pin)) {
+    toast.error("Enter your 4 or 6 digit transfer PIN.");
+    return;
+  }
+
+  setSubmitting(true);
+  setLoading(true);
+
+  try {
+    await api.post("/users/verify-pin", { pin });
+
+    await api.post("/transfers", {
+      fromAccountName: form.fromAccount,
+      toAccount: form.toAccount.trim(),
+      amount: Number(form.amount),
+      note: form.note?.trim(),
+    });
+
+    setShowPinModal(false);
+    setPinInput("");
+    setForm({ fromAccount: "Main Account", toAccount: "", amount: "", note: "" });
+
     try {
-      // ✅ verify pin server-side
-      await api.post("/users/verify-pin", { pin });
+      const res = await api.get("/accounts");
+      setAccounts(res.data || []);
+    } catch {}
 
-      // ✅ create transfer
-      await api.post("/transfers", {
-        fromAccountName: form.fromAccount,
-        toAccount: form.toAccount.trim(),
-        amount: Number(form.amount),
-        note: form.note?.trim(),
-      });
-
-      setShowPinModal(false);
-      setPinInput("");
-      setForm({ fromAccount: "Main Account", toAccount: "", amount: "", note: "" });
-
-      // ✅ refresh accounts so balance reflects quickly (deduct-immediately logic)
-      try {
-        const res = await api.get("/accounts");
-        setAccounts(res.data || []);
-      } catch {}
-
-      setSuccessState("pending");
-      toast.success("Transfer submitted!");
-      setTimeout(() => navigate("/dashboard"), 1200);
-    } catch (error) {
-      console.error(error);
-      toast.error(error?.response?.data?.message || "Transfer failed");
-    } finally {
-      setLoading(false);
-    }
-  };
+    setSuccessState("pending");
+    toast.success("Transfer submitted!");
+    setTimeout(() => navigate("/dashboard"), 1200);
+  } catch (error) {
+    console.error(error);
+    toast.error(error?.response?.data?.message || "Transfer failed");
+  } finally {
+    setLoading(false);
+    setSubmitting(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white p-6">
