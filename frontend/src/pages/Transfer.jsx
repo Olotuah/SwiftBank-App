@@ -208,7 +208,7 @@ export default function Transfer() {
 
       setSuccessState("pending");
       toast.success("Transfer submitted!");
-      setTimeout(() => setSuccessState(null), 4500);
+      setTimeout(() => navigate("/dashboard"), 1200);
     } catch (error) {
       console.error(error);
       toast.error(error?.response?.data?.message || "Transfer failed");
