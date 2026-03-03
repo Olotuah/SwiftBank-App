@@ -10,25 +10,21 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { getStoredUser, logout as doLogout } from "../services/authService";
+import { getStoredUser, logout as doLogout, setStoredUser } from "../services/authService";
 import { toast, Toaster } from "react-hot-toast";
-import { setStoredUser } from "../services/authService";
-import { updateStoredUser } from "../services/authService";
 import api from "../utils/api";
 
 export default function Profile() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const storedUser = useMemo(() => getStoredUser(), []);
+  // ✅ Use state, not frozen memo, so UI updates immediately after PIN set
+  const [user, setUser] = useState(() => getStoredUser());
+
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(location.search);
     return params.get("tab") || "profile";
   });
-
-  const res = await api.post("/users/set-pin", { pin });
-updateStoredUser(res.data.user); // ✅ this makes transfer page see it immediately
-toast.success("PIN set successfully");
 
   const [pinForm, setPinForm] = useState({
     pin: "",
@@ -37,7 +33,9 @@ toast.success("PIN set successfully");
   const [savingPin, setSavingPin] = useState(false);
   const [showPin, setShowPin] = useState(false);
 
-  const firstName = storedUser?.fullName?.split?.(" ")?.[0] || "User";
+  const firstName = useMemo(() => {
+    return user?.fullName?.split?.(" ")?.[0] || "User";
+  }, [user]);
 
   const handleLogout = () => {
     doLogout();
@@ -51,28 +49,16 @@ toast.success("PIN set successfully");
   };
 
   const handlePinChange = (e) => {
-    setPinForm({ ...pinForm, [e.target.name]: e.target.value });
+    setPinForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleSetPin = async () => {
-  try {
-    const res = await api.put("/users/pin", { pin }); // or /auth/pin depending on your route
-    toast.success("PIN set successfully");
-
-    // ✅ update local user immediately
-    setStoredUser(res.data.user);
-
-  } catch (err) {
-    toast.error(err?.response?.data?.message || "Failed to set PIN");
-  }
-};
-
+  // ✅ Correct PIN save function (no top-level await, build-safe)
   const saveTransferPin = async () => {
     const pin = pinForm.pin.trim();
     const confirm = pinForm.confirmPin.trim();
 
-    if (!/^\d{4}$/.test(pin)) {
-      toast.error("PIN must be exactly 4 digits");
+    if (!/^\d{4}$/.test(pin) && !/^\d{6}$/.test(pin)) {
+      toast.error("PIN must be 4 or 6 digits");
       return;
     }
     if (pin !== confirm) {
@@ -82,16 +68,17 @@ toast.success("PIN set successfully");
 
     setSavingPin(true);
     try {
-      const res = await api.post("/auth/pin", { pin });
+      const res = await api.post("/users/set-pin", { pin });
 
-      toast.success(res?.data?.message || "Transfer PIN set successfully");
+      const updatedUser = res?.data?.user || { ...(user || {}), hasTransferPin: true };
 
-      // ✅ update local user object so Transfer page can detect PIN exists
-      const updated = {
-        ...(storedUser || {}),
-        hasTransferPin: true,
-      };
-      localStorage.setItem("user", JSON.stringify(updated));
+      // ✅ Update localStorage so Transfer page sees it immediately
+      setStoredUser(updatedUser);
+
+      // ✅ Update page state so Profile UI updates immediately
+      setUser(updatedUser);
+
+      toast.success(res?.data?.message || "PIN set successfully");
 
       setPinForm({ pin: "", confirmPin: "" });
       setShowPin(false);
@@ -136,7 +123,7 @@ toast.success("PIN set successfully");
 
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold">
-                  {storedUser?.fullName || "Your Profile"}
+                  {user?.fullName || "Your Profile"}
                 </h1>
                 <p className="text-slate-400 text-sm">
                   Welcome, {firstName}. Manage your account settings.
@@ -188,10 +175,10 @@ toast.success("PIN set successfully");
               <h2 className="text-xl font-bold">Account Information</h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <InfoItem label="Full Name" value={storedUser?.fullName || "—"} />
-                <InfoItem label="Email" value={storedUser?.email || "—"} />
-                <InfoItem label="Account Number" value={storedUser?.accountNumber || "—"} />
-                <InfoItem label="Account Type" value={storedUser?.accountType || "Main Account"} />
+                <InfoItem label="Full Name" value={user?.fullName || "—"} />
+                <InfoItem label="Email" value={user?.email || "—"} />
+                <InfoItem label="Account Number" value={user?.accountNumber || "—"} />
+                <InfoItem label="Account Type" value={user?.accountType || "Main Account"} />
               </div>
 
               <div className="rounded-2xl bg-slate-800/60 border border-slate-700 p-4">
@@ -295,12 +282,12 @@ toast.success("PIN set successfully");
                     Transfer PIN
                   </p>
                   <p className="text-xs text-slate-400 mt-1">
-                    Set a 4-digit PIN you’ll use to confirm transfers.
+                    Set a 4 or 6-digit PIN you’ll use to confirm transfers.
                   </p>
                 </div>
 
                 <div className="text-xs px-3 py-1 rounded-full border border-slate-600">
-                  {storedUser?.hasTransferPin ? "PIN Set" : "Not Set"}
+                  {user?.hasTransferPin ? "PIN Set" : "Not Set"}
                 </div>
               </div>
 
@@ -309,11 +296,11 @@ toast.success("PIN set successfully");
                   <input
                     type={showPin ? "text" : "password"}
                     name="pin"
-                    maxLength={4}
+                    maxLength={6}
                     inputMode="numeric"
                     value={pinForm.pin}
                     onChange={handlePinChange}
-                    placeholder="Enter 4-digit PIN"
+                    placeholder="Enter PIN (4 or 6 digits)"
                     className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700"
                   />
                   <button
@@ -329,7 +316,7 @@ toast.success("PIN set successfully");
                 <input
                   type={showPin ? "text" : "password"}
                   name="confirmPin"
-                  maxLength={4}
+                  maxLength={6}
                   inputMode="numeric"
                   value={pinForm.confirmPin}
                   onChange={handlePinChange}
@@ -343,7 +330,7 @@ toast.success("PIN set successfully");
                 disabled={savingPin}
                 className="mt-4 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 transition text-sm font-semibold disabled:opacity-60"
               >
-                {savingPin ? "Saving..." : storedUser?.hasTransferPin ? "Update PIN" : "Set PIN"}
+                {savingPin ? "Saving..." : user?.hasTransferPin ? "Update PIN" : "Set PIN"}
               </button>
 
               <p className="text-xs text-slate-400 mt-2">
@@ -351,7 +338,6 @@ toast.success("PIN set successfully");
               </p>
             </div>
 
-            {/* Existing security cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <SecurityCard
                 title="Login Alerts"
