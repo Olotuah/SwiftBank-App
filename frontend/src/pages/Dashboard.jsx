@@ -35,7 +35,7 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
 
   // ✅ define user ONCE
-  const user = useMemo(() => getStoredUser(), []);
+  const [user, setUser] = useState(() => getStoredUser());
   const isAdmin = !!user?.isAdmin || !!user?.admin;
   const firstName = user?.fullName?.split?.(" ")?.[0] || "there";
 
@@ -94,6 +94,18 @@ export default function Dashboard() {
     },
     [navigate]
   );
+
+  useEffect(() => {
+  const onStorage = (e) => {
+    if (e.key === "user") {
+      try {
+        setUser(e.newValue ? JSON.parse(e.newValue) : null);
+      } catch {}
+    }
+  };
+  window.addEventListener("storage", onStorage);
+  return () => window.removeEventListener("storage", onStorage);
+}, []);
 
   // ✅ Load once + auto refresh every 10 seconds
   useEffect(() => {
@@ -360,7 +372,15 @@ export default function Dashboard() {
                         <p className="text-xs text-slate-500">
                           {new Date(t.timestamp || t.createdAt || Date.now()).toLocaleString()}
                           {" • "}
-                          <span className="capitalize">{t.status || "Completed"}</span>
+                          <span
+  className={`capitalize ${
+    String(t.status).toLowerCase() === "rejected"
+      ? "text-rose-300 font-semibold"
+      : "text-slate-300"
+  }`}
+>
+  {t.status || "Completed"}
+</span>
                         </p>
                       </div>
 
@@ -425,12 +445,12 @@ export default function Dashboard() {
               </p>
             </div>
             <button
-              onClick={() => toast("Support center coming soon")}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-900 hover:bg-slate-200 transition text-sm font-semibold"
-            >
-              <LifeBuoy size={18} />
-              Support Center
-            </button>
+  onClick={() => navigate("/support")}
+  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-900 hover:bg-slate-200 transition text-sm font-semibold"
+>
+  <LifeBuoy size={18} />
+  Support Center
+</button>
           </div>
         </motion.div>
       </div>
