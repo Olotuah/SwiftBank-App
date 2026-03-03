@@ -270,7 +270,7 @@ export default function Transfer() {
             <div>
               <h1 className="text-3xl font-bold">Transfer Funds</h1>
               <p className="text-slate-400 mt-1">
-                Send money to another SwiftBank user by{" "}
+                Send money to another SuissBank user by{" "}
                 <span className="text-slate-200">account number</span> or{" "}
                 <span className="text-slate-200">email</span>.
               </p>
