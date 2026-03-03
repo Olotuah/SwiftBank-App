@@ -442,7 +442,7 @@ export default function Dashboard() {
             <div>
               <h3 className="text-lg font-bold">Need help?</h3>
               <p className="text-sm text-slate-200/80">
-                Visit SwiftBank support, FAQs, or chat with an agent.
+                Visit SuissBank support, FAQs, or chat with an agent.
               </p>
             </div>
             <button
