@@ -16,6 +16,7 @@ import TopUp from "./pages/TopUp";
 import FxSales from "./pages/FxSales";
 import BuyData from "./pages/BuyData";
 import NearMe from "./pages/NearMe";
+import Support from "./pages/Support";
 
 function App() {
   return (
@@ -40,6 +41,7 @@ function App() {
         <Route path="/buy-data" element={<BuyData />} />
         <Route path="/near-me" element={<NearMe />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/support" element={<Support />} />
       </Routes>
     </>
   );
