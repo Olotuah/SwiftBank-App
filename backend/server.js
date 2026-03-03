@@ -20,6 +20,7 @@ app.use(express.json());
 app.use("/api/transfers", transferRoutes);
 app.use("/api/admin", adminSetupRoutes);
 app.use("/api/users", userRoutes);
+app.use("/support", supportRoutes);
 app.use("/api/auth", authRoutes); // ✅ check this too
 app.use('/api/accounts', accountRoutes);
 app.use("/api", tempAdminRoute);
