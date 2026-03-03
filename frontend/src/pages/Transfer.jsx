@@ -260,7 +260,7 @@ export default function Transfer() {
           </button>
 
           <Link to="/dashboard" className="text-sm text-slate-300 hover:text-white transition">
-            SwiftBank Dashboard
+            SuissBank Dashboard
           </Link>
         </div>
 
