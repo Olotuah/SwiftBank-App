@@ -242,7 +242,7 @@ export default function Profile() {
             </div>
 
             <p className="text-sm text-slate-400">
-              These limits control how much you can transfer within SwiftBank.
+              These limits control how much you can transfer within SuissBank.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
