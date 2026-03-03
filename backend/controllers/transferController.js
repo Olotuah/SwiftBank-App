@@ -217,6 +217,7 @@ export const approveTransfer = async (req, res) => {
 
     transfer.status = "APPROVED";
 transfer.decidedBy = req.user.id;
+transfer.decisionReason = "";
 transfer.decidedAt = new Date();
 transfer.decisionReason = ""; // optional: clear any old reason
 await transfer.save({ session });
@@ -262,15 +263,26 @@ export const rejectTransfer = async (req, res) => {
     await fromAcc.save({ session });
 
     // ✅ mark pending tx as rejected
-    await Transaction.updateMany(
+    const cleanReason = String(reason || "Rejected by admin").trim();
+
+await Transaction.updateMany(
   { transferRef: transfer.reference, user: transfer.fromUser, status: "Pending" },
-  { $set: { status: "Rejected" } },
+  {
+    $set: {
+      status: "Rejected",
+      description: transfer.note
+        ? `Transfer rejected: ${cleanReason} • Note: ${transfer.note}`
+        : `Transfer rejected: ${cleanReason}`,
+    },
+  },
   { session }
 );
 
+    
    transfer.status = "REJECTED";
 transfer.decisionReason = String(reason || "Rejected by admin").trim();
 transfer.decidedBy = req.user.id;
+transfer.decisionReason = cleanReason;
 transfer.decidedAt = new Date();
 await transfer.save({ session });
 
