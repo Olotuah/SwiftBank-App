@@ -16,6 +16,26 @@ dotenv.config();
 
 const app = express();
 
+const allowedOrigins = [
+  "https://suissbank.com",
+  "https://www.suissbank.com",
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // allow server-to-server / Postman (no origin)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+  })
+);
+
 app.use(cors());
 app.use(express.json());
 app.use("/api/transfers", transferRoutes);
