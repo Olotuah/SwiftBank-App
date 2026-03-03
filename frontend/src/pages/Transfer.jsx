@@ -479,12 +479,13 @@ export default function Transfer() {
               </button>
 
               <button
-                onClick={verifyPinAndSubmit}
-                className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 transition text-sm font-semibold inline-flex items-center gap-2"
-              >
-                <BadgeCheck size={18} />
-                Verify & Submit
-              </button>
+  onClick={verifyPinAndSubmit}
+  disabled={loading || submitting}
+  className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 transition text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-60 disabled:pointer-events-none"
+>
+  <BadgeCheck size={18} />
+  {submitting ? "Submitting..." : "Verify & Submit"}
+</button>
             </div>
 
             <div className="text-xs text-slate-500 pt-1 flex items-center gap-2">
