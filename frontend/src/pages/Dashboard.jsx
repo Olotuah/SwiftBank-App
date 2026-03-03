@@ -222,8 +222,6 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* ✅ ONE MarketCharts */}
-        <MarketCharts />
 
         {/* BALANCE + LIMIT ALERT */}
         <motion.div
@@ -346,6 +344,9 @@ export default function Dashboard() {
             ))}
           </div>
         </motion.div>
+
+        {/* ✅ ONE MarketCharts */}
+        <MarketCharts />
 
         {/* MORE REAL BANK ACTIVITIES BELOW */}
         <motion.div initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.22, duration: 0.55 }}>
