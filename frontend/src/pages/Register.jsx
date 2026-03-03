@@ -24,7 +24,7 @@ export default function Register() {
     try {
       await register(form); // ✅ uses authService (stores token + user)
       toast.success("Registration successful!");
-      navigate("/dashboard"); // ✅ take user straight inside
+      navigate("/login"); // ✅ take user straight inside
     } catch (err) {
       toast.error(err?.response?.data?.message || "Registration failed");
     } finally {
@@ -33,17 +33,17 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-gray-900 to-gray-800 text-white font-manrope px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-gray-900 to-gray-800 text-white font-sans px-4">
       <Toaster position="top-right" />
 
       <form
         onSubmit={handleSubmit}
         className="bg-white/10 p-8 rounded-xl space-y-4 w-full max-w-md border border-white/10 shadow-xl"
       >
-        <h2 className="text-3xl font-bold font-inter">Register for SwiftBank</h2>
-        <p className="text-sm text-gray-300">
-          Create an account to access your dashboard.
-        </p>
+       <h2 className="text-3xl font-heading font-bold">Register for SwiftBank</h2>
+       <p className="text-sm text-gray-300 font-sans font-normal">
+        Create an account to access your dashboard.
+       </p>
 
         <input
           type="text"
@@ -78,7 +78,7 @@ export default function Register() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded font-inter font-semibold disabled:opacity-60 transition"
+          className="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded font-heading font-semibold disabled:opacity-60 transition"
         >
           {loading ? "Registering..." : "Register"}
         </button>
