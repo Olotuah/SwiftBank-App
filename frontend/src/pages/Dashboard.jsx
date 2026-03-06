@@ -264,6 +264,13 @@ export default function Dashboard() {
             </div>
 
             <div className="flex flex-wrap gap-2 pt-1">
+
+              <Link
+  to="/statement"
+  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 transition text-sm font-semibold"
+>
+  Generate Statement
+</Link>
               <Link
                 to="/account-details"
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 transition text-sm"
