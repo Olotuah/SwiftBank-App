@@ -7,6 +7,7 @@ import adminSetupRoutes from "./routes/adminSetupRoutes.js";
 import accountRoutes from './routes/account.js';
 import userRoutes from "./routes/userRoutes.js";
 import authRoutes from './routes/auth.js';
+import statementRoutes from "./routes/statementRoutes.js";
 import transferRoutes from "./routes/transferRoutes.js";
 import supportRoutes from "./routes/supportRoutes.js";
 import tempAdminRoute from "./routes/tempAdminRoute.js";
@@ -41,6 +42,7 @@ app.use(express.json());
 app.use("/api/transfers", transferRoutes);
 app.use("/api/admin", adminSetupRoutes);
 app.use("/api/users", userRoutes);
+app.use("/statements", statementRoutes);
 app.use("/support", supportRoutes);
 app.use("/api/auth", authRoutes); // ✅ check this too
 app.use('/api/accounts', accountRoutes);
