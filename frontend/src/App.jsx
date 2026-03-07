@@ -15,6 +15,7 @@ import SessionTimeout from "./components/SessionTimeout";
 import TopUp from "./pages/TopUp";
 import FxSales from "./pages/FxSales";
 import BuyData from "./pages/BuyData";
+import Statement from "./pages/Statement";
 import NearMe from "./pages/NearMe";
 import Support from "./pages/Support";
 
@@ -29,6 +30,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/Statement" element={<Statement />} />
         <Route path="/transactions" element={<Transactions />} />
         <Route path="/admin/transfers" element={<AdminTransfers />} />
         <Route path="/transfer" element={<Transfer />} />
