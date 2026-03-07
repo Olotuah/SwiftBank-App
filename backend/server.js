@@ -20,6 +20,7 @@ const app = express();
 const allowedOrigins = [
   "https://suissbank.com",
   "https://www.suissbank.com",
+  "https://swift-bank-app.vercel.app",
 ];
 
 app.use(
