@@ -21,6 +21,7 @@ const allowedOrigins = [
   "https://suissbank.com",
   "https://www.suissbank.com",
   "https://swift-bank-app.vercel.app",
+  "https://suissebank.vercel.app",
 ];
 
 app.use(
